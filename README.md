@@ -54,13 +54,13 @@
 
 | Command | What it does |
 |---|---|
-| _(automatic)_ | When Claude exits plan mode, the captured plan is decomposed into queued task files. When TodoWrite is used (by any tool — vanilla Claude, Superpowers, etc.), todo state is mirrored to `.logbook/` folders: `pending → queued/`, `in_progress → active/`, `completed → done/`. Fuzzy-matched against existing tasks to avoid duplicates. |
-| `/logbook:jot <note>` | Manual quick-capture to `.logbook/inbox.md`. Auto-splits multi-item input. |
+| _(automatic)_ | When Claude exits plan mode, the captured plan is decomposed into queued task files. When TodoWrite is used (by any tool — vanilla Claude, Superpowers, etc.), todo state is mirrored to `.logbook/` folders: `pending → queued/`, `in_progress → active/`, `completed → done/`. **Update-only policy** — TodoWrite never *creates* logbook tasks, only updates state of tasks that already exist. Tactical within-execution sub-steps don't pollute the backlog. |
+| `/logbook:next` | **Work through your backlog sequentially.** Picks the highest-priority queued task (priority desc, date asc within same priority), moves it to `active/`, and starts it. Run it again when you finish to pull the next one. |
 | `/logbook:status` | Read-only dashboard: counts per state, active task progress, blocked tasks, queued items. |
+| `/logbook:jot <note>` | Manual quick-capture to `.logbook/inbox.md`. Auto-splits multi-item input. **Use this if you want new top-level work tracked** — TodoWrite mid-execution won't auto-capture new items anymore (see policy above). |
 | `/logbook:triage` | Process inbox items into queued tasks. Smart at grouping/dedup/discard. Does NOT generate Plans. |
 | `/logbook:capture` | Manual fallback for plan-like content from conversation that didn't go through plan mode. |
 | `/logbook:start <task>` | Start a new tracked task explicitly with a description. |
-| `/logbook:next` | Pick up the highest-priority queued task and move it to `active/`. |
 
 ---
 
@@ -125,12 +125,17 @@ The first time logbook activates in a project (auto-trigger from a hook, or manu
 # Queued:    6 tasks
 # Done:      1 task
 
-# 5. You go to bed. Next day:
+# 5. You finish the active task. Pull the next one:
+/logbook:next
+# 📋 Started 'Add chunked upload retry'. File moved to active/.
+# (priority desc, then date asc within same priority)
+
+# 6. You go to bed. Next day:
 /logbook:status
 # Logbook still knows where you left off.
 # .logbook/active/<task>.md and queued/ files are durable.
 
-# 6. Quick informal capture during testing:
+# 7. Quick informal capture during testing:
 /logbook:jot the modal doesn't close on escape
 # 📝 Logged to inbox: the modal doesn't close on escape
 ```
@@ -195,6 +200,8 @@ Blocked: 2026-04-16 15:32 — waiting on scope clarification (close as obsolete?
 **Blocked active tasks stay in `active/`.** When a task can't proceed without user input, the `Blocked:` field captures it but the file doesn't move. Moving to `paused/` is for indefinite parking, not transient input-waiting. Heuristic: blocks older than ~7 days hint at promotion.
 
 **One-line announcements.** Hooks emit single-line `📋` messages on actual state changes (capturing a plan, starting a todo, wrapping a todo). No-op syncs are silent. Cap of ~3 announcements per call to avoid chat spam.
+
+**TodoWrite mirror is update-only.** The mirror hook only flips state on tasks that already exist in `.logbook/`. New TodoWrite items that don't match any existing task are **ignored entirely** — never written to disk. This is deliberate: TodoWrite is used for both top-level durable work AND tactical within-execution sub-steps ("Task 1a: refactor inner loop"), and the hook can't tell them apart from the payload alone. Mirroring everything pollutes the backlog with sub-steps. The right way to add new top-level work mid-conversation is `/logbook:jot` (manual) or letting plan mode do another capture (structured). Trade-off acknowledged: if Claude spontaneously adds new feature-level work to TodoWrite mid-execution, you'll need to `/jot` it explicitly to track it.
 
 ---
 

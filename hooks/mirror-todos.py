@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
 """Logbook PostToolUse hook for TodoWrite.
 
-Mirrors the current TodoWrite state to .logbook/ folders. Status maps:
+Mirrors TodoWrite STATE CHANGES into .logbook/ folders. Status maps:
   pending      → queued/
   in_progress  → active/
   completed    → done/
 
-For each todo, fuzzy-matches against existing logbook tasks (by title
-similarity, ≥70% word overlap on the smaller title). If matched, moves
-the file to the corresponding folder if status changed. If no match,
-creates a new task file in the target folder.
+UPDATE-ONLY policy (since v0.2.1):
+  For each todo, fuzzy-match against existing logbook tasks. If matched
+  AND the status changed, move the task file to the corresponding
+  folder. If no existing task matches, the todo is IGNORED — we do not
+  create new task files from TodoWrite.
+
+The reason: TodoWrite is used for two different things at the same
+surface — top-level durable work ("Polish dashboard sections") AND
+tactical within-execution breakdowns ("Task 1a: refactor inner loop").
+Mirroring everything creates one logbook file per tactical sub-step,
+which pollutes the backlog. Updating only what already exists keeps the
+mirror useful (state stays in sync with execution) without polluting
+(sub-steps that were never logbook tasks stay invisible).
+
+If a user genuinely wants to add new top-level work mid-conversation,
+the right primitive is `/logbook:jot` (manual capture) or plan mode
+(structured capture). TodoWrite is for state updates on tracked work,
+not for capturing new work.
 
 The hook receives the FULL current todos array on every TodoWrite call
 (not deltas). So we sync logbook to match the latest state.
@@ -130,67 +144,20 @@ def move_task(file_path: Path, target_folder: Path, new_status: str) -> Path | N
     return new_path
 
 
-def create_task(logbook_dir: Path, todo: dict, target_folder_name: str) -> Path | None:
-    title = (todo.get("content") or "").strip()
-    if not title:
-        return None
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    slug = slugify(title)
-    target_folder = logbook_dir / target_folder_name
-    try:
-        target_folder.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        return None
-
-    target = target_folder / f"{today}_{slug}.md"
-    counter = 1
-    while target.exists():
-        target = target_folder / f"{today}_{slug}-{counter}.md"
-        counter += 1
-
-    status_label = "queued" if target_folder_name == "queued" else target_folder_name
-
-    content = (
-        f"# {title}\n\n"
-        f"Created: {today}\n"
-        f"Status: {status_label}\n"
-        f"Tags:\n"
-        f"Source: captured from TodoWrite\n"
-        f"Priority: medium\n\n"
-        f"## Notes\n\n"
-    )
-
-    try:
-        target.write_text(content, encoding="utf-8")
-        return target
-    except OSError:
-        return None
-
-
 def update_index_for_changes(
     logbook_dir: Path,
     moves: list[tuple[Path, Path, str]],
-    creates: list[tuple[Path, str]],
 ) -> None:
-    if not moves and not creates:
+    """Rewrite affected rows in index.md after file moves."""
+    if not moves:
         return
 
     index_path = logbook_dir / "index.md"
     now_iso = datetime.now().strftime("%Y-%m-%d %H:%M")
-    today = datetime.now().strftime("%Y-%m-%d")
 
     if not index_path.exists():
-        try:
-            index_path.write_text(
-                "# Logbook Index\n\n"
-                f"Last updated: {now_iso}\n\n"
-                "| Status | Date | Title | Tags | File |\n"
-                "|--------|------|-------|------|------|\n",
-                encoding="utf-8",
-            )
-        except OSError:
-            return
+        # No index to update — and we don't create from TodoWrite.
+        return
 
     try:
         existing = index_path.read_text(encoding="utf-8")
@@ -204,7 +171,7 @@ def update_index_for_changes(
         count=1,
     )
 
-    # For moves: rewrite the matching row's status column and path column.
+    # Rewrite the matching row's status column and path column.
     for old_path, new_path, new_status in moves:
         old_rel = re.escape(f"{old_path.parent.name}/{old_path.name}")
         new_rel = f"{new_path.parent.name}/{new_path.name}"
@@ -216,23 +183,6 @@ def update_index_for_changes(
             lambda m: f"| {new_status} |{m.group(1)}|{m.group(2)}|{m.group(3)}| {new_rel} |",
             existing,
         )
-
-    # For creates: append rows.
-    new_rows: list[str] = []
-    for path, status in creates:
-        try:
-            first_line = path.read_text(encoding="utf-8").split("\n", 1)[0]
-        except OSError:
-            continue
-        title = first_line[2:].strip() if first_line.startswith("# ") else path.stem
-        title_escaped = title.replace("|", "\\|")
-        rel_path = f"{path.parent.name}/{path.name}"
-        new_rows.append(
-            f"| {status} | {today} | {title_escaped} |  | {rel_path} |"
-        )
-
-    if new_rows:
-        existing = existing.rstrip() + "\n" + "\n".join(new_rows) + "\n"
 
     try:
         index_path.write_text(existing, encoding="utf-8")
@@ -280,7 +230,6 @@ def main() -> int:
             return 0
 
         moves: list[tuple[Path, Path, str]] = []
-        creates: list[tuple[Path, str]] = []
         announcements: list[str] = []
 
         for todo in todos:
@@ -296,25 +245,28 @@ def main() -> int:
 
             existing = find_matching_task(logbook_dir, content)
 
-            if existing:
-                current_folder = existing.parent.name
-                if current_folder == target_folder_name:
-                    continue  # No change needed
-                target_folder = logbook_dir / target_folder_name
-                new_path = move_task(existing, target_folder, target_status)
-                if new_path:
-                    moves.append((existing, new_path, target_status))
-                    truncated = content[:60] + ("…" if len(content) > 60 else "")
-                    if status == "in_progress":
-                        announcements.append(f"📋 Started: {truncated}")
-                    elif status == "completed":
-                        announcements.append(f"📋 Wrapped: {truncated}")
-            else:
-                created = create_task(logbook_dir, todo, target_folder_name)
-                if created:
-                    creates.append((created, target_status))
+            # UPDATE-ONLY policy: no existing match → ignore.
+            # Tactical TodoWrite sub-steps that aren't already tracked
+            # in logbook should not pollute the backlog. The right way
+            # to add new work is /logbook:jot or plan mode.
+            if not existing:
+                continue
 
-        update_index_for_changes(logbook_dir, moves, creates)
+            current_folder = existing.parent.name
+            if current_folder == target_folder_name:
+                continue  # No change needed
+
+            target_folder = logbook_dir / target_folder_name
+            new_path = move_task(existing, target_folder, target_status)
+            if new_path:
+                moves.append((existing, new_path, target_status))
+                truncated = content[:60] + ("…" if len(content) > 60 else "")
+                if status == "in_progress":
+                    announcements.append(f"📋 Started: {truncated}")
+                elif status == "completed":
+                    announcements.append(f"📋 Wrapped: {truncated}")
+
+        update_index_for_changes(logbook_dir, moves)
 
         for msg in announcements[:3]:
             print(msg)
