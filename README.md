@@ -211,12 +211,19 @@ v0.1 (this release) ships:
 
 Planned for later versions:
 
+**Smarter triage (v0.2 candidate).** Triage today groups by topic. Make it group by *code overlap*: Grep/Glob the user's repo to infer which files each inbox item likely touches, then group items whose file-sets overlap. That's the actual right metric for token efficiency — two items that touch the same file are a free combo even if they look unrelated; two "auth" items that touch totally different files waste a context load if combined. Add dedup detection (same idea jotted twice), subsumption detection (small item is a subset of a larger one → becomes a Plan step, not a separate task), and effort sensing (flag tasks that look like they're secretly 8 things). The repo-awareness piece is load-bearing; the rest is icing.
+
+**Autonomous research subagents (v0.3 candidate).** After `/triage` confirms a queued task, optionally spawn a background `Task` subagent (`run_in_background=true`) that reads the relevant files and writes a real Context + Plan into the queued task file. By the time you pick up the task with `/logbook`, the spec is ready for review — you skim, refine, then execute. This turns triage into an async research stage running in parallel with whatever you're doing in the foreground. The token cost is amortized across separate sessions; the foreground context stays clean. This is the long-term shape: async preparation, synchronous execution.
+
+**Smaller items:**
 - PostToolUse auto-capture hook (opt-in; logs every file edit + commit to inbox as `[auto] …` lines)
 - `/logbook config <key> <value>` command
 - `/logbook repair` (reconcile `index.md` with the actual filesystem)
 - Tag filtering in `/status`
 - Priority sorting in `queued/`
 - Multi-session conflict handling (right now, two parallel Claude Code sessions writing to the same `.logbook/` is undefined behavior)
+- Stale-item awareness (tag inbox items that have sat for >N days)
+- Auto-archival of old `done/` items into `done/archive/YYYY-MM/`
 
 ---
 
