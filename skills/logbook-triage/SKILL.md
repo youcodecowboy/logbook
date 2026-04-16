@@ -17,7 +17,7 @@ Group raw inbox items into structured tasks the user can pick up later. This is 
 
 1. Read `.logbook/inbox.md`. If there are no `- ` lines (just the header), reply `📋 Inbox is empty — nothing to triage.` and stop.
 2. Read `.logbook/index.md` so you don't accidentally duplicate tasks already in `queued/`, `active/`, or `paused/`.
-3. **Split detection pass (do this before grouping).** Scan each inbox line for ones that look like they contain multiple distinct items — delimited by `;`, `, also `, `, and then `, comma followed by a clause that could stand alone, or distinct sentences. For each candidate, propose a split:
+3. **Split detection pass (do this before grouping).** Most multi-item lines should already be split — `/jot` auto-splits on entry. But sometimes a multi-item line slips through: pasted content, direct inbox.md edits, or `/jot` calls that left a bundled line whole when it shouldn't have. Scan each inbox line for ones that look like they contain multiple distinct items — delimited by `;`, `, also `, `, and then `, comma followed by a clause that could stand alone, or distinct sentences. For each candidate, propose a split:
 
    ```
    This inbox line looks like multiple items:
@@ -37,7 +37,7 @@ Group raw inbox items into structured tasks the user can pick up later. This is 
 
    **Be willing to propose splits** — false positives are cheap (the user just says "leave as one"). False negatives are expensive (one task ends up conflating three things and the user has to clean it up later). But don't auto-split without asking — bundled-concept lines like `rewrite the auth, refresh, and login flow` are real.
 
-   Don't rewrite `inbox.md` yet — keep the split state in memory until the whole triage pass is done, then rewrite once at the end (step 7).
+   Don't rewrite `inbox.md` yet — keep the split state in memory until the whole triage pass is done, then rewrite once at the end (step 8).
 
 4. Look at all items (split + un-split) and propose groupings by theme — component (auth, dashboard, settings), feature area, file path, bug-vs-feature, etc. **A single item can be its own group.** Don't force-fit everything into multi-item bundles.
 5. For each proposed group, present a short summary to the user:

@@ -14,7 +14,7 @@
 
 | Command | What it does |
 |---|---|
-| `/jot <note>` | Append a one-liner to `.logbook/inbox.md`. Zero context switch. Use `;` to capture multiple items in one call: `/jot fix the deploy; auth refresh is brittle; add loading skeletons`. |
+| `/jot <note>` | Append to `.logbook/inbox.md`. Auto-splits multi-item input into separate lines (`/jot fix dashboard flash, also auth is brittle, and add skeletons` → 3 lines). Use `;` to force a split when you want to be explicit. |
 | `/status` | Dashboard: counts per state, active task progress, queued items. |
 | `/triage` | Group raw inbox captures into structured tasks (queued backlog). Also detects when one inbox line is actually multiple items in a trench coat and offers to split. |
 | `/logbook <task>` | Explicitly start a tracked task with a plan. |

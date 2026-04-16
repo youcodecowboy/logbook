@@ -8,7 +8,7 @@ description: >
   conversation or ambient observations.
 disable-model-invocation: true
 allowed-tools: Read, Write, Bash(mkdir:*)
-argument-hint: [note] (or for multi-item: [item; item; item])
+argument-hint: [note] (multi-item is fine — auto-splits, or use `;` to force)
 ---
 
 # /jot — Quick Capture
@@ -38,11 +38,25 @@ Append `$ARGUMENTS` to `.logbook/inbox.md` as one or more dated lines, then retu
      abandoned/
      ```
    Initialization is idempotent: only create files/dirs that don't exist, never overwrite.
-3. **Split on `;` if present.** If `$ARGUMENTS` contains one or more `;` characters, split on them and treat each non-empty trimmed segment as a separate item. Otherwise, treat the whole input as one item.
+3. **Split into items.** Decide whether `$ARGUMENTS` is one thought or several. Two paths:
 
-   Don't try to be smart about commas, "and", "also", or sentence breaks — that's `/triage`'s job. The semicolon splitter is opt-in: if the user typed `;`, they meant it.
+   **Fast path — explicit `;`.** If the input contains `;` characters, split on them. Each non-empty trimmed segment is one item. The user typed `;` deliberately, so don't second-guess.
 
-   Caveat: if the note contains semicolons that aren't list separators (code snippets, URLs with `?foo=bar;baz`), it'll over-split. Acceptable trade-off for v0.1 — the user can re-jot or fix in inbox.md directly.
+   **Smart path — no `;`.** Read the input and decide if it describes one thing or multiple distinct things. Split when distinct, leave whole when bundled. **Bias toward splitting** — the cost of being wrong is one extra "merge these" decision during `/triage`, while the cost of NOT splitting when you should have is items getting buried inside a conflated task that the user discovers later.
+
+   Heuristics that suggest splitting:
+   - Multiple complete clauses with their own verbs joined by "also", "and then", "plus", "; and": `fix dashboard flash, also auth refresh is brittle, and we should add skeletons` → 3 items.
+   - Distinct sentences: `Settings page flashes white. Auth refresh feels brittle.` → 2 items.
+   - Newline-separated lines in pasted multi-line input → one item per non-empty line.
+
+   Heuristics that suggest leaving as one item:
+   - A single bundled noun phrase even with commas: `rewrite the auth, refresh, and login flow` → one item (one verb, one bundled object).
+   - A single observation with qualifiers: `the deploy is red because the migration timed out and rolled back` → one item (one event with explanation).
+   - Code snippets, URLs, or quoted text containing punctuation that looks like delimiters → one item.
+
+   When uncertain, lean toward splitting. Triage can always re-group; un-splitting from a buried task is harder.
+
+   Caveat: if a note contains real semicolons that aren't list separators (code snippets, URLs with `?foo=bar;baz`), the explicit fast path will over-split. Acceptable trade-off — the user can re-jot or edit `inbox.md` directly.
 
 4. For each item (one or many), append a line to `.logbook/inbox.md`:
 
