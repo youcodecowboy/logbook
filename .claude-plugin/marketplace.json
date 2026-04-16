@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Single-plugin marketplace for logbook — a flight recorder for Claude Code that captures tasks, manages a structured backlog, and tracks work as plain markdown files in your repo.",
-    "version": "0.2.1"
+    "version": "0.2.2"
   },
   "plugins": [
     {
@@ -14,7 +14,7 @@
       "description": "Flight recorder for Claude Code: automatic task capture, structured backlog, session-aware work tracking — all as plain markdown files in your repo.",
       "category": "productivity",
       "tags": ["backlog", "tasks", "tracking", "markdown", "flight-recorder"],
-      "version": "0.2.1",
+      "version": "0.2.2",
       "homepage": "https://github.com/youcodecowboy/logbook",
       "license": "MIT",
       "author": {

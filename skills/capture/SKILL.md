@@ -1,5 +1,5 @@
 ---
-name: logbook-capture
+name: capture
 description: >
   Capture a plan-like structure from the recent conversation into the
   logbook backlog. Use when the user invokes /logbook:capture or asks
@@ -59,7 +59,7 @@ Same response interpretation as triage (natural language, not literal keywords).
 
 ### 5. Delegate writes to logbook-worker
 
-**Do not write files yourself.** Hand the batch to `logbook-worker` via Task tool with `subagent_type="logbook:logbook-worker"`. Pass a precise instruction: create N task files in `.logbook/queued/`.
+**Do not write files yourself.** Hand the batch to the `worker` subagent via Task tool with `subagent_type="logbook:worker"`. Pass a precise instruction: create N task files in `.logbook/queued/`.
 
 Each task file content:
 
@@ -89,6 +89,6 @@ Worker also adds rows to `index.md` and touches the `Last updated:` line.
 ## Rules
 
 - **No Plan generation.** Tasks have `## Notes` (empty). Plans happen at execution time elsewhere.
-- **Never write files yourself** — delegate to logbook-worker.
+- **Never write files yourself** — delegate to the worker subagent.
 - **Don't capture conversational text.** Only capture explicit plan-like structures (lists, checkboxes, headers + items). If the conversation is just discussion without a list, ask the user to paste or describe.
 - **Dedup against existing backlog.** Before creating a task, check `.logbook/queued/`, `active/`, `paused/` for fuzzy title matches. If one exists, skip and note it.

@@ -1,11 +1,11 @@
 ---
-name: logbook-jot
+name: jot
 description: >
   Append a quick note, thought, bug, or idea to the logbook inbox at
   `.logbook/inbox.md`. This is zero-friction capture — no triage, no
   classification, no thinking. Use only when the user explicitly invokes
-  /jot or asks to "jot down" something. Do not auto-trigger on general
-  conversation or ambient observations.
+  /logbook:jot or asks to "jot down" something. Do not auto-trigger on
+  general conversation or ambient observations.
 disable-model-invocation: true
 allowed-tools: Read, Write, Bash(mkdir:*)
 argument-hint: [note] (multi-item is fine — auto-splits, or use `;` to force)
@@ -106,4 +106,4 @@ Append `$ARGUMENTS` to `.logbook/inbox.md` as one or more dated lines, then retu
 - **Preserve any tags** the user wrote (`#bug`, `#frontend`, etc.). Don't add or remove them.
 - **Preserve URL-like content, code snippets, file paths.** Pass through verbatim.
 - If `$ARGUMENTS` is empty or whitespace, ask once for the note content, then proceed.
-- Never create task files. That's the main skill's job.
+- Never create task files. Inbox lines only. The user can `/logbook:triage` later to promote inbox items into queued tasks.

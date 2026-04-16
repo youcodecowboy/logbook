@@ -1,6 +1,6 @@
 {
   "name": "logbook",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Lightweight backlog directory for Claude Code: captures plans from plan mode and TodoWrite, mirrors state to disk, gives you a durable cross-session view of your work without trying to plan or execute anything itself.",
   "author": {
     "name": "youcodecowboy",

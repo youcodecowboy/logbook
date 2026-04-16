@@ -1,5 +1,5 @@
 ---
-name: logbook-triage
+name: triage
 description: >
   Process accumulated inbox items into structured queued tasks. Use when
   the user invokes /logbook:triage or asks to clean up, organize,
@@ -78,7 +78,7 @@ For multiple edits in one message, apply them all and re-present the updated pla
 
 ### 5. Delegate the writes to logbook-worker
 
-**Once the plan is locked, you write nothing yourself.** Hand the entire batch to the `logbook-worker` subagent via the `Task` tool with `subagent_type="logbook:logbook-worker"`. Pass a precise instruction list — what to create, what to move, what to discard, what to merge.
+**Once the plan is locked, you write nothing yourself.** Hand the entire batch to the `worker` subagent via the `Task` tool with `subagent_type="logbook:worker"`. Pass a precise instruction list — what to create, what to move, what to discard, what to merge.
 
 **Task file content** for new queued tasks (note: NO `## Plan`, NO structured `## Log`):
 
@@ -121,7 +121,7 @@ If the worker reported any errors (collision, index out of sync), surface those 
 ## Rules
 
 - **Never generate Plans.** Tasks get `## Notes` (empty). Plans happen at execution time via plan mode or whatever the user uses.
-- **Never write files yourself** — always delegate to logbook-worker.
+- **Never write files yourself** — always delegate to the worker subagent.
 - **One presentation, one ask.** No per-group ping-pong unless the user wants to iterate.
 - **Bias toward proposing splits, dedups, discards.** Cheap to override with "keep N", expensive to miss.
 - **Preserve original timestamps** in `Source:` for provenance.
