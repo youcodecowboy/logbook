@@ -1,12 +1,52 @@
 # logbook
 
-> A Claude Code plugin that gives every session a flight recorder. Automatic task capture, structured backlog, session-aware work tracking — all stored as plain markdown files in your repo.
+> A lightweight backlog directory for Claude Code. Captures plans automatically from plan mode and TodoWrite, mirrors state to plain markdown files in your repo, and gives you a durable cross-session view of what's in flight — without trying to plan or execute anything itself.
 
-**Audience:** Vibecoders, solo devs, and small teams who work fast and conversationally and need a backlog system that doesn't require a separate tool.
+**Audience:** Vibecoders, solo devs, and small teams running multiple Claude Code sessions / sub-agents who lose track of what's done vs. what's still in flight.
 
-**Philosophy:** The backlog is files. Everything else is a view. No external dependencies, no auth, no subscriptions. Git tracks history for free.
+**Philosophy:** Logbook is the memory layer underneath the tools you actually use. Plan mode plans the work. Superpowers / vanilla Claude / your own skills do the work. Logbook just remembers what's been planned and what's been done — across sessions, across agents, across developers pulling from the same repo.
 
-> ⚠️ **Status: v0.1 — first-user dogfood.** The author is the first test subject. Expect rough edges and rapid iteration. Feedback and PRs welcome.
+> ⚠️ **Status: v0.2.0 — fundamental architectural rewrite.** v0.1.x tried to be a self-sufficient planner-orchestrator and competed with better-purpose tools. v0.2.0 strips that out and becomes a thin persistence layer that hooks into Claude Code's native plan mode + TodoWrite. If you used v0.1.x, the file layout is the same but the behavior is meaningfully different. See [CHANGELOG-style notes](#changes-from-v01x) below.
+
+---
+
+## How it works
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  You make a substantive request to Claude Code           │
+└────────────────────────────┬─────────────────────────────┘
+                             │
+       ┌─────────────────────┼─────────────────────┐
+       ▼                     ▼                     ▼
+┌─────────────┐       ┌──────────────┐       ┌──────────┐
+│  Plan mode  │       │  TodoWrite   │       │  /jot    │
+│  (auto)     │       │  (auto)      │       │  (manual)│
+└──────┬──────┘       └──────┬───────┘       └─────┬────┘
+       │                     │                     │
+       │  ExitPlanMode hook  │  TodoWrite hook     │
+       │  capture-plan.py    │  mirror-todos.py    │
+       │                     │                     │
+       └─────────────────────┴─────────────────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │   .logbook/         │
+                  │     queued/         │
+                  │     active/         │
+                  │     paused/         │
+                  │     done/           │
+                  │     abandoned/      │
+                  │     index.md        │
+                  └─────────────────────┘
+                             ▲
+       ┌─────────────────────┼─────────────────────┐
+       │                     │                     │
+  /logbook:status     /logbook:next        /logbook:triage
+  /logbook:start      /logbook:capture
+```
+
+**Three capture paths feed the same `.logbook/` directory.** Most of the time you don't notice logbook is there — it just keeps state in sync. When you want to query what's going on, the slash commands are your read interface.
 
 ---
 
@@ -14,26 +54,23 @@
 
 | Command | What it does |
 |---|---|
-| `/logbook:jot <note>` | Append to `.logbook/inbox.md`. Auto-splits multi-item input into separate lines (`/logbook:jot fix dashboard flash, also auth is brittle, and add skeletons` → 3 lines). Use `;` to force a split when you want to be explicit. |
-| `/logbook:status` | Dashboard: counts per state, active task progress, queued items. |
-| `/logbook:triage` | Group raw inbox captures into structured tasks (queued backlog). Also detects when one inbox line is actually multiple items in a trench coat and offers to split. |
-| `/logbook:start <task>` | Explicitly start a new tracked task with a plan. |
-| `/logbook:next` | Pick up the next queued task (priority desc, then date asc) and start working on it. |
-| _(automatic)_ | When you ask Claude for something multi-step (a feature, a bug fix, a refactor), the main `logbook` skill auto-triggers and creates a task file with a plan. Progress is logged step-by-step. |
-
-> **About command names:** Claude Code namespaces plugin commands as `/<plugin-name>:<command-name>`, so the canonical form is always `/logbook:jot`, `/logbook:status`, etc. Bare forms like `/jot` may work as shorthand if no other plugin or built-in claims them, but the namespaced form is always safe and is what the docs use.
-
-The plugin stores everything in `.logbook/` inside your repo. Tasks live in folders named after their state (`queued/`, `active/`, `paused/`, `done/`, `abandoned/`). An `index.md` at the top is the master table.
+| _(automatic)_ | When Claude exits plan mode, the captured plan is decomposed into queued task files. When TodoWrite is used (by any tool — vanilla Claude, Superpowers, etc.), todo state is mirrored to `.logbook/` folders: `pending → queued/`, `in_progress → active/`, `completed → done/`. Fuzzy-matched against existing tasks to avoid duplicates. |
+| `/logbook:jot <note>` | Manual quick-capture to `.logbook/inbox.md`. Auto-splits multi-item input. |
+| `/logbook:status` | Read-only dashboard: counts per state, active task progress, blocked tasks, queued items. |
+| `/logbook:triage` | Process inbox items into queued tasks. Smart at grouping/dedup/discard. Does NOT generate Plans. |
+| `/logbook:capture` | Manual fallback for plan-like content from conversation that didn't go through plan mode. |
+| `/logbook:start <task>` | Start a new tracked task explicitly with a description. |
+| `/logbook:next` | Pick up the highest-priority queued task and move it to `active/`. |
 
 ---
 
-## Why files?
+## What it does NOT do
 
-- **Greppable.** `rg "auth"` across `.logbook/` finds every task touching auth.
-- **Diffable.** Git tracks every change to your backlog for free.
-- **Movable.** A task that goes from active to done is just `mv`.
-- **Portable.** No vendor lock-in. Open the files in any editor. Read them on a plane.
-- **Survives compaction.** Your work plan is on disk, not in a context window.
+- **Doesn't generate Plans.** Task files have a free-form `## Notes` section, never auto-filled. When you pick up a queued task, plan mode (or whatever execution tool you use) does the planning.
+- **Doesn't orchestrate execution.** Logbook moves files in response to TodoWrite signals or explicit commands. The actual implementation work happens in whatever tool you reach for.
+- **Doesn't compete with Superpowers, brainstorming, or other planning skills.** It runs underneath them and captures their output for durability.
+
+The core problem it solves: when you're running multiple Claude Code sessions or sub-agents, plans live in conversation context and TODOs live in session state — both gone when the session ends. Logbook makes them survive on disk and queryable across sessions.
 
 ---
 
@@ -46,7 +83,7 @@ The plugin stores everything in `.logbook/` inside your repo. Tasks live in fold
 /plugin install logbook@logbook
 ```
 
-**Local install (no marketplace):**
+**Local install:**
 
 ```bash
 git clone https://github.com/youcodecowboy/logbook.git ~/code/logbook
@@ -56,69 +93,47 @@ git clone https://github.com/youcodecowboy/logbook.git ~/code/logbook
 /plugin install ~/code/logbook
 ```
 
-The first time you run `/jot`, `/status`, or trigger a tracked task, logbook auto-initializes `.logbook/` in your project root.
+The first time logbook activates in a project (auto-trigger from a hook, or manual command), `.logbook/` is initialized in the project root.
 
-> **If the marketplace install errors with "marketplace file not found"**, you're on a version older than v0.1.4 (which added `.claude-plugin/marketplace.json`). Either pull latest and retry, or use the local-install path above. If a stale marketplace cache is hanging around, run `/plugin marketplace remove logbook` (or `youcodecowboy-logbook`, depending on what got cached) before re-adding.
-
-> **One-time permission prompt:** the main `logbook` skill, `/triage`, and the worker subagent use `date '+%Y-%m-%d %H:%M'` to timestamp log entries. Claude Code will ask for permission the first time — pick "always allow" and it goes silent. `/jot` does not need this — it uses the date already in context.
+> **Command namespacing:** Claude Code namespaces plugin commands as `/<plugin>:<command>`, so the canonical form is `/logbook:jot`, `/logbook:status`, etc. Bare forms (`/jot`) may work as shorthand depending on your Claude Code setup, but the namespaced form always works.
 
 ---
 
 ## Quick start
 
 ```
-/logbook:jot the dashboard flashes white on first load
+# 1. You ask Claude something substantive.
+"work on the upload flow — it's missing what the mobile web has"
 
-# (a few jots later)
-/logbook:triage
-# → presents the full plan in one message
-# → you say "yes" to approve all (or "change 2" / "discard 1" to edit)
-# → worker subagent creates queued/<date>_*.md files in the background
+# 2. Claude enters plan mode, investigates, produces a plan.
+#    You accept the plan.
+#    capture-plan.py hook fires → 8 tasks land in .logbook/queued/
+#    📋 Captured plan: 8 task(s) → .logbook/queued/
 
+# 3. Claude (or Superpowers, or whatever) starts work.
+#    It uses TodoWrite to track progress.
+#    mirror-todos.py hook fires on each call:
+#    📋 Started: Add multi-file selection
+#    📋 Wrapped: Add multi-file selection
+#    📋 Started: Add chunked upload retry
+
+# 4. Sometime later, you check what's in flight:
 /logbook:status
-# → shows the current state of your backlog
+# 📋 Logbook Status
+# ─────────────────
+# Active:    1 task
+# Queued:    6 tasks
+# Done:      1 task
 
-/logbook:next
-# → picks the highest-priority queued task and moves it to active/
+# 5. You go to bed. Next day:
+/logbook:status
+# Logbook still knows where you left off.
+# .logbook/active/<task>.md and queued/ files are durable.
 
-# OR — just talk to Claude
-"hey can you fix that dashboard flash thing"
-# → main logbook skill triggers, picks up the queued task,
-#   moves it to active/, executes the plan, logs each step,
-#   moves to done/ on completion
+# 6. Quick informal capture during testing:
+/logbook:jot the modal doesn't close on escape
+# 📝 Logged to inbox: the modal doesn't close on escape
 ```
-
----
-
-## Task lifecycle
-
-```
-                    ┌─────────────┐
-  /jot ──────────►  │   inbox.md  │  raw, unstructured one-liners
-                    └──────┬──────┘
-                           │ /triage
-                    ┌──────▼──────┐
-                    │   queued/   │  triaged, planned, ready to work
-                    └──────┬──────┘
-                           │ work begins
-                    ┌──────▼──────┐
-                    │   active/   │  agent is executing steps
-                    └──────┬──────┘
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐  ┌─────────┐  ┌───────────┐
-         │  done/ │  │ paused/ │  │abandoned/ │
-         └────────┘  └─────────┘  └───────────┘
-```
-
-| State | Meaning |
-|---|---|
-| **inbox** | Raw capture. Unstructured one-liners with timestamps. No plan, no tags. |
-| **queued** | Triaged and structured. Has a plan with steps, tags, and context. Ready to be picked up. This IS the backlog. |
-| **active** | Currently being worked. The agent is executing steps and logging progress. Realistically 1–2 at a time. |
-| **paused** | Started but parked — waiting on something, context switched, deprioritized. |
-| **done** | Completed. All steps finished, logged, summarized. |
-| **abandoned** | Decided not to do. Kept for context (why we *didn't* do something is valuable). |
 
 ---
 
@@ -126,75 +141,60 @@ The first time you run `/jot`, `/status`, or trigger a tracked task, logbook aut
 
 ```
 .logbook/
-├── .gitignore           # ignores inbox.md, done/, abandoned/ by default
-├── inbox.md             # raw jots, timestamped
-├── index.md             # master table of all tasks
-├── queued/              # the actual backlog
-├── active/              # currently being worked
-├── paused/              # parked
-├── done/                # completed
-└── abandoned/           # decided against (kept for context)
+├── .gitignore                # ignores inbox.md, done/, abandoned/ by default
+├── inbox.md                  # raw captures from /jot
+├── index.md                  # master table of all tasks + statuses
+├── .last-session-state       # snapshot from PreCompact hook (gitignored)
+├── queued/                   # the actual backlog
+├── active/                   # currently being worked
+├── paused/                   # parked indefinitely
+├── done/                     # completed
+└── abandoned/                # decided against (kept for context)
 ```
 
-By default, `inbox.md`, `done/`, and `abandoned/` are gitignored — they're scratch and archive, and git itself is your history tool. `queued/`, `active/`, `paused/` are tracked because they're living documentation of what's in flight.
-
-You can toggle these in `.logbook/.gitignore` directly.
+By default, `inbox.md`, `done/`, `abandoned/` are gitignored — they're scratch + archive, and git is your history tool. `queued/`, `active/`, `paused/` are tracked because they're living documentation of what's in flight. Edit `.logbook/.gitignore` to taste.
 
 ---
 
-## Sample task file
+## Sample task file (v0.2.0 — minimal)
 
 ```markdown
-# Fix Settings Page Flash
+# Add multi-file selection to upload
 
-Created: 2026-04-16 11:30
+Created: 2026-04-16
 Status: active
-Tags: #frontend #bug #ui
-Source: inbox (2026-04-16 10:45 — settings page flashes white on load)
+Tags: #frontend #ux
+Source: captured from plan mode
 Priority: medium
 
-## Context
+## Notes
 
-The settings page shows a white flash on load because the theme context
-isn't available on first render. The CSS defaults to light mode and then
-switches when the context hydrates.
-
-## Plan
-
-- [x] Reproduce and identify root cause
-- [ ] Fix the rendering pipeline to await theme context
-- [ ] Add a minimal loading state / skeleton
-- [ ] Verify on both light and dark mode
-
-## Log
-
-### [1] Reproduce and identify root cause
-Status: done
-Started: 11:32 | Completed: 11:38 | Duration: 6m
-Summary: Confirmed — `useTheme()` returns `undefined` on first render
-  because `ThemeProvider` is inside a lazy-loaded layout. The CSS
-  transition from white → dark causes the flash.
-Files touched: (investigation only, no changes)
-Commit: —
-
-### [2] Fix rendering pipeline
-Status: active
-Started: 11:40
 ```
+
+That's the whole file. No `## Plan` checklist — plans come from plan mode or other execution tools at the moment work is picked up. No structured `## Log` — git history + the conversation transcript already capture what happened. The `## Notes` section is free-form, optional, and never auto-filled — it's there for the user or the execution tool to add context as needed.
+
+If a task is `active` and waiting on user input, a `Blocked:` field appears below `Status:`:
+
+```markdown
+Status: active
+Blocked: 2026-04-16 15:32 — waiting on scope clarification (close as obsolete? re-scope to icons only?)
+```
+
+`/logbook:status` surfaces blocked tasks separately. Blocks older than ~7 days hint at promoting the task to `paused/`.
 
 ---
 
 ## Behavior notes
 
-**Within-day ordering is by file position, not timestamp.** Inbox items are dated `YYYY-MM-DD` only. If you capture 10 things in one day, they appear in the order you captured them — file position is the order signal. If you need precise time ordering, type the time in the note itself: `/jot 14:30 — deploy went red`.
+**Within-day ordering is by file position, not timestamp.** Inbox items are dated `YYYY-MM-DD` only. If you capture 10 things in a day, they appear in capture order — file position is the order signal. If you need precise time, type it in the note: `/jot 14:30 — deploy went red`.
 
-**Queued task Plans are starting prompts, not specs.** When `/triage` creates a queued task, the Plan is what the model could infer from the inbox text alone — without reading the code. When you pick up the task with `/logbook`, expect to refine the Plan based on actual file reading. Treat the queued Plan as a thinking-prompt, not a spec to execute verbatim.
+**`/triage` writes through the worker subagent.** When you confirm a triage plan, the file operations happen in a forked subagent context to keep your main conversation clean. You'll see a one-line summary when it finishes.
 
-**`/triage` writes through the worker subagent.** When you confirm a triage plan, the file operations (creating task files, updating index, archiving discards, rewriting inbox) happen in a forked subagent context to keep your main conversation clean. You'll see a one-line summary of what was created — the worker chatter stays out of your context budget.
+**Discards live at `.logbook/abandoned/inbox-discards.md`** — single rolling file rather than one file per discard. The `abandoned/` folder is gitignored by default, so discards stay local.
 
-**Discards live at `.logbook/abandoned/inbox-discards.md`.** When you discard inbox lines during triage (test debris, accidental captures, things that turned out to be irrelevant), they're moved to a single rolling file rather than deleted outright. The `abandoned/` folder is gitignored by default, so discards stay local. Edit `.logbook/.gitignore` if you want them tracked.
+**Blocked active tasks stay in `active/`.** When a task can't proceed without user input, the `Blocked:` field captures it but the file doesn't move. Moving to `paused/` is for indefinite parking, not transient input-waiting. Heuristic: blocks older than ~7 days hint at promotion.
 
-**Blocked active tasks stay in `active/`.** When a task can't proceed without user input or a decision, the main skill adds a `Blocked: <date> — <reason>` field to the task file but does NOT move it to `paused/`. The file stays in `active/` because it's still in-progress work. `/logbook:status` surfaces blocked tasks separately (`Active: 2 tasks (1 blocked, awaiting input)`) so they're visible without reading every task file. If a block has been sitting >7 days, status will hint about promoting it to `paused/`. The distinction: `Blocked:` field = transient input-waiting, expected to resolve in a session; `paused/` folder = parked indefinitely, will revisit when conditions change.
+**One-line announcements.** Hooks emit single-line `📋` messages on actual state changes (capturing a plan, starting a todo, wrapping a todo). No-op syncs are silent. Cap of ~3 announcements per call to avoid chat spam.
 
 ---
 
@@ -207,74 +207,58 @@ Tags are inferred by the model from task content. Starting vocabulary:
 #data #system #frontend #backend #debt #chore
 ```
 
-Custom tags are encouraged — write them in your `/jot` notes (`/jot #urgent the deploy is broken`) and they'll be preserved.
+Custom tags are encouraged — write them in `/jot` notes (`/jot #urgent the deploy is broken`) and they'll be preserved.
 
 ---
 
 ## How the pieces fit
 
-- **`logbook`** — main skill, auto-triggers on multi-step work. Reads state, decides what to do, logs progress. Also handles `/logbook:start <task>` (explicit start) and `/logbook:next` (pull from queue).
-- **`logbook-jot`** — `/logbook:jot`. Appends to `inbox.md` (smart-split on multi-item input) and returns with a preview of what landed.
-- **`logbook-status`** — `/logbook:status`. Read-only dashboard.
-- **`logbook-triage`** — `/logbook:triage`. Builds a full triage plan (splits + groupings + discards + tags), presents it in one message, accepts bulk approval or targeted edits, then delegates the writes to the worker subagent.
-- **`logbook-worker`** — subagent that handles file I/O in a forked context, so `mv`/`Edit` chatter doesn't eat your main token budget. Invoked by both the main skill and triage.
-- **`pre-compact.py`** — PreCompact hook. Marks active task files with a checkpoint and snapshots session state before Claude Code compacts the conversation, so if compaction happens mid-step you can pick up where you left off.
+- **`hooks/capture-plan.py`** — `PostToolUse` on `ExitPlanMode`. Parses plan content (from `tool_input.plan` or `~/.claude/plans/*.md`), creates queued task files, dedups against existing tasks.
+- **`hooks/mirror-todos.py`** — `PostToolUse` on `TodoWrite`. Mirrors todos to logbook folders by status. Fuzzy-matches existing tasks to avoid duplicates.
+- **`hooks/pre-compact.py`** — `PreCompact`. Snapshots active task paths to `.logbook/.last-session-state` so the main skill can offer resumption next session.
+- **`logbook` skill** — Auto-activates when the user asks about backlog state. Read/query interface; doesn't drive work.
+- **`logbook-jot` / `logbook-triage` / `logbook-capture` / `logbook-status` skills** — Manual entry points. Triage and capture delegate writes to logbook-worker.
+- **`logbook-worker` agent** — All file writes happen here, in a forked context, so the main conversation stays focused on actual work.
+
+---
+
+## Changes from v0.1.x
+
+If you were running v0.1.x, here's what changed:
+
+| What | v0.1.x | v0.2.0 |
+|---|---|---|
+| **Decomposition** | Main skill did its own multi-step planning, generated `## Plan` checklists per task | Plan mode does it; capture-plan.py hook ingests the result |
+| **Task files** | Frontmatter + `## Context` + `## Plan` checklist + structured `## Log` per step | Frontmatter + `Source:` + free-form `## Notes`. No Plan, no structured Log. |
+| **Execution** | Main skill orchestrated step-by-step, logged each step | No execution orchestration. Other tools do the work; logbook just observes state changes |
+| **State updates** | Main skill manually `mv`d files between folders | `mirror-todos.py` hook does it automatically based on TodoWrite state |
+| **Triage** | Generated `## Plan` for each new queued task | Doesn't generate Plans. Tasks get empty `## Notes`. |
+| **Compaction handling** | Wrote `[compaction checkpoint]` log entries | Just snapshots state to `.last-session-state` (no log entries to write into) |
+| **Visibility** | Long status messages, multi-step prompts | Single-line `📋` announcements; mostly silent |
+
+Existing `.logbook/` directories from v0.1.x continue to work — old task files with `## Plan` and `## Log` sections are read fine, just no new ones get those sections going forward.
 
 ---
 
 ## Roadmap
 
-v0.1 (this release) ships:
-
-- ✅ Main `logbook` skill (auto-trigger + `/logbook`)
-- ✅ `/jot`, `/status`, `/triage`
-- ✅ `logbook-worker` subagent for file ops
-- ✅ PreCompact hook (work survives context compaction)
-- ✅ Auto-initialization of `.logbook/`
-
-Planned for later versions:
-
-**Smarter triage (v0.2 candidate).** Triage today groups by topic. Make it group by *code overlap*: Grep/Glob the user's repo to infer which files each inbox item likely touches, then group items whose file-sets overlap. That's the actual right metric for token efficiency — two items that touch the same file are a free combo even if they look unrelated; two "auth" items that touch totally different files waste a context load if combined. Add dedup detection (same idea jotted twice), subsumption detection (small item is a subset of a larger one → becomes a Plan step, not a separate task), and effort sensing (flag tasks that look like they're secretly 8 things). The repo-awareness piece is load-bearing; the rest is icing.
-
-**Autonomous research subagents (v0.3 candidate).** After `/triage` confirms a queued task, optionally spawn a background `Task` subagent (`run_in_background=true`) that reads the relevant files and writes a real Context + Plan into the queued task file. By the time you pick up the task with `/logbook`, the spec is ready for review — you skim, refine, then execute. This turns triage into an async research stage running in parallel with whatever you're doing in the foreground. The token cost is amortized across separate sessions; the foreground context stays clean. This is the long-term shape: async preparation, synchronous execution.
-
-**Smaller items:**
-- PostToolUse auto-capture hook (opt-in; logs every file edit + commit to inbox as `[auto] …` lines)
-- `/logbook config <key> <value>` command
-- `/logbook repair` (reconcile `index.md` with the actual filesystem)
-- Tag filtering in `/status`
-- Priority sorting in `queued/`
-- Multi-session conflict handling (right now, two parallel Claude Code sessions writing to the same `.logbook/` is undefined behavior)
-- Stale-item awareness (tag inbox items that have sat for >N days)
-- Auto-archival of old `done/` items into `done/archive/YYYY-MM/`
+- **Loop-mode execution** — after queued tasks are picked up, optionally auto-pull the next on completion (vs. asking each time)
+- **`/logbook:repair`** — reconcile `index.md` with the actual filesystem
+- **Tag filtering in `/status`** — `/logbook:status #frontend`
+- **Cross-project view** — query state across multiple `.logbook/` directories on the machine
+- **Smarter triage** — repo-aware grouping (Grep/Glob the codebase to infer file overlap, group by file area)
+- **Multi-session conflict handling** — right now, two parallel Claude Code sessions writing to the same `.logbook/` is undefined behavior
 
 ---
 
 ## Contributing
 
 Right now this is dogfood. The fastest way to help is to **use it and tell me what's broken or annoying.** File an issue with:
-
 - What you tried to do
 - What logbook did instead
-- The relevant `.logbook/` file or log entry, if useful
+- Relevant `.logbook/` file or hook output
 
-PRs welcome — but please ping in an issue first, since the design is still settling.
-
----
-
-## Design rationale (the short version)
-
-**Status folders, not date folders** — a task that starts Monday and finishes Thursday shouldn't live in a "Monday" folder. Filesystem answers "what state?"; file contents and git answer "when?".
-
-**One file per task** — each has its own lifecycle. Greppable, diffable, movable. Monolithic logs become unmanageable fast.
-
-**Tags, not folders-per-domain** — tasks are multi-faceted. `#frontend #perf #bug` simultaneously beats forcing a single classification.
-
-**Auto-triage gated to the main skill** — moving from inbox to queued is a structuring decision. The user should know what was triaged and have a chance to correct it. Silent background triage erodes trust fast.
-
-**A `queued/` state exists** because "structured and planned but not started" is genuinely different from "raw note" or "currently being worked." `queued/` IS the backlog. When the user asks "what's next?" the answer is the top of that folder.
-
-**A worker subagent for file ops** — bookkeeping happens in a forked context so the main conversation isn't eaten by `mv` and `Edit` chatter. The overhead is invisible to the user.
+PRs welcome — please ping in an issue first; the design is still settling.
 
 ---
 

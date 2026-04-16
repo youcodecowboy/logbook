@@ -1,7 +1,7 @@
 {
   "name": "logbook",
-  "version": "0.1.8",
-  "description": "Flight recorder for Claude Code: automatic task capture, structured backlog, and session-aware work tracking — all as plain markdown files in your repo.",
+  "version": "0.2.0",
+  "description": "Lightweight backlog directory for Claude Code: captures plans from plan mode and TodoWrite, mirrors state to disk, gives you a durable cross-session view of your work without trying to plan or execute anything itself.",
   "author": {
     "name": "youcodecowboy",
     "url": "https://github.com/youcodecowboy"
@@ -15,7 +15,8 @@
     "tracking",
     "productivity",
     "markdown",
-    "flight-recorder"
+    "plan-mode",
+    "todowrite"
   ],
   "hooks": {
     "PreCompact": [
@@ -24,6 +25,26 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/capture-plan.py"
+          }
+        ]
+      },
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/mirror-todos.py"
           }
         ]
       }

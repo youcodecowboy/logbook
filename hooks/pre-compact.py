@@ -1,39 +1,32 @@
 #!/usr/bin/env python3
 """Logbook PreCompact hook.
 
-Runs before Claude Code compacts the conversation context. Walks
-.logbook/active/ in the user's working directory and:
+Runs before Claude Code compacts the conversation context. Writes
+.logbook/.last-session-state with a snapshot of active task paths so
+the main logbook skill can offer resumption on the next session start.
 
-  1. Appends a [compaction checkpoint] entry to any active task file
-     that's been worked on recently (mtime within the last hour). This
-     gives the post-compaction agent a visible marker that earlier log
-     entries may be incomplete and to resume from the last unchecked
-     Plan step.
-  2. Writes .logbook/.last-session-state with a JSON snapshot of active
-     task paths and the timestamp, for the main logbook skill to read
-     on the next session start.
+The previous version (v0.1.x) also appended `[compaction checkpoint]`
+log entries to active task files. v0.2.0 dropped that — task files no
+longer have structured `## Log` sections, so there's nothing to write
+into. The state snapshot is the useful part.
 
-Design notes
-------------
-- The hook is a separate process. It cannot read conversation context.
-  It works only with file state. The actual progress logging during
-  work is the skill's job; this hook is a safety net that marks
-  potential gaps.
-- The hook MUST NOT block compaction. It exits 0 on every error path.
-- The hook walks upward from CWD a few levels in case Claude was
-  invoked from a subdirectory of the project root.
+Project root: prefer $CLAUDE_PROJECT_DIR env var. Fall back to walking
+up from CWD looking for a `.logbook/` directory (in case CWD is a
+subdir of the project root).
+
+Always exits 0. Never blocks compaction. Never raises.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 
 def find_logbook_dir(start: Path, max_levels: int = 6) -> Path | None:
-    """Walk up from `start` looking for a `.logbook/` directory."""
     for parent in [start, *start.parents][:max_levels]:
         candidate = parent / ".logbook"
         if candidate.is_dir():
@@ -43,25 +36,31 @@ def find_logbook_dir(start: Path, max_levels: int = 6) -> Path | None:
 
 def main() -> int:
     try:
-        # Drain stdin so Claude Code's hook IPC doesn't error if it
-        # tried to send us a payload. We don't need the contents.
+        # Drain stdin defensively (Claude Code may send a JSON payload).
         try:
             if not sys.stdin.isatty():
                 sys.stdin.read()
         except Exception:
             pass
 
-        logbook = find_logbook_dir(Path.cwd())
+        # Project root from env var, fallback to CWD walk-up.
+        project_dir_str = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+        try:
+            start = Path(project_dir_str)
+        except Exception:
+            return 0
+
+        logbook = (start / ".logbook") if (start / ".logbook").is_dir() else None
         if logbook is None:
-            return 0  # No logbook in this project — nothing to checkpoint.
+            logbook = find_logbook_dir(start)
+        if logbook is None:
+            return 0
 
         active_dir = logbook / "active"
         if not active_dir.is_dir():
             return 0
 
-        now = datetime.now()
-        recent_threshold = now - timedelta(hours=1)
-        timestamp = now.strftime("%Y-%m-%d %H:%M")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         active_paths: list[str] = []
         for task_file in sorted(active_dir.glob("*.md")):
@@ -71,36 +70,12 @@ def main() -> int:
                 rel = str(task_file)
             active_paths.append(rel)
 
-            try:
-                mtime = datetime.fromtimestamp(task_file.stat().st_mtime)
-            except OSError:
-                continue
-
-            if mtime < recent_threshold:
-                continue  # Stale — skip; it wasn't being actively worked.
-
-            # Append a visible checkpoint marker so the post-compaction
-            # agent sees that something happened and the previous log
-            # entry may be incomplete.
-            try:
-                with task_file.open("a", encoding="utf-8") as f:
-                    f.write(
-                        f"\n### [compaction checkpoint] {timestamp}\n"
-                        "Status: context was about to be compacted.\n"
-                        "Note: resume from the last unchecked Plan step. "
-                        "The most recent log entry above may be incomplete.\n"
-                    )
-            except OSError:
-                # Skip this file but keep going. Never break compaction.
-                pass
-
-        # Snapshot session state for the next logbook skill activation.
         state = {
             "timestamp": timestamp,
             "active_tasks": active_paths,
             "note": (
-                "Written by the logbook PreCompact hook just before "
-                "Claude Code compacted the conversation context."
+                "Snapshot written by the logbook PreCompact hook. "
+                "Use to offer session resumption."
             ),
         }
         try:
@@ -114,8 +89,7 @@ def main() -> int:
         return 0
 
     except Exception:
-        # Truly never raise. A non-zero exit would block compaction
-        # and that's a much worse failure than missing a checkpoint.
+        # Never raise. A non-zero exit would block compaction.
         return 0
 
 

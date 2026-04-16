@@ -6,13 +6,6 @@ Tags: {{TAGS}}
 Source: {{SOURCE}}
 Priority: {{PRIORITY}}
 
-## Context
+## Notes
 
-{{CONTEXT}}
-
-## Plan
-
-{{PLAN_CHECKLIST}}
-
-## Log
-
+{{NOTES}}
