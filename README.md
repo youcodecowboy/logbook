@@ -36,17 +36,17 @@ The plugin stores everything in `.logbook/` inside your repo. Tasks live in fold
 
 ## Install
 
-From inside Claude Code:
+**Marketplace install (recommended):**
 
 ```
 /plugin marketplace add youcodecowboy/logbook
 /plugin install logbook@logbook
 ```
 
-Or clone and install locally:
+**Local install (no marketplace):**
 
 ```bash
-git clone git@github.com:youcodecowboy/logbook.git ~/code/logbook
+git clone https://github.com/youcodecowboy/logbook.git ~/code/logbook
 ```
 
 ```
@@ -54,6 +54,8 @@ git clone git@github.com:youcodecowboy/logbook.git ~/code/logbook
 ```
 
 The first time you run `/jot`, `/status`, or trigger a tracked task, logbook auto-initializes `.logbook/` in your project root.
+
+> **If the marketplace install errors with "marketplace file not found"**, you're on a version older than v0.1.4 (which added `.claude-plugin/marketplace.json`). Either pull latest and retry, or use the local-install path above. If a stale marketplace cache is hanging around, run `/plugin marketplace remove logbook` (or `youcodecowboy-logbook`, depending on what got cached) before re-adding.
 
 > **One-time permission prompt:** the main `logbook` skill, `/triage`, and the worker subagent use `date '+%Y-%m-%d %H:%M'` to timestamp log entries. Claude Code will ask for permission the first time — pick "always allow" and it goes silent. `/jot` does not need this — it uses the date already in context.
 
