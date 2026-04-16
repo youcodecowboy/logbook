@@ -55,6 +55,8 @@ git clone git@github.com:youcodecowboy/logbook.git ~/code/logbook
 
 The first time you run `/jot`, `/status`, or trigger a tracked task, logbook auto-initializes `.logbook/` in your project root.
 
+> **One-time permission prompt:** the main `logbook` skill, `/triage`, and the worker subagent use `date '+%Y-%m-%d %H:%M'` to timestamp log entries. Claude Code will ask for permission the first time — pick "always allow" and it goes silent. `/jot` does not need this — it uses the date already in context.
+
 ---
 
 ## Quick start

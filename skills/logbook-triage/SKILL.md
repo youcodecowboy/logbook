@@ -26,17 +26,18 @@ Group raw inbox items into structured tasks the user can pick up later. This is 
      Title: {proposed title}
      Tags:  #tag1 #tag2
      Items:
-       - 2026-04-16 10:45 — {note}
-       - 2026-04-16 11:15 — {note}
+       - 2026-04-16 — {note}
+       - 2026-04-16 — {note}
 
-   yes / rename / regroup / skip ?
+   Sound right? (you can say yes / rename it / change the grouping / skip it)
    ```
 
-5. **Wait for the user's response before creating the file.**
-   - `yes` → create the task file in `.logbook/queued/`, update `.logbook/index.md`, mark these items as processed.
-   - `rename "New Title"` → create with the new title.
-   - `regroup` → ask which items belong together; redo proposals.
-   - `skip` → leave items in inbox, move to next group.
+5. **Wait for the user's response before creating the file.** The user will reply in natural language — interpret intent, don't expect literal keywords:
+   - **Affirmative** ("yes", "yeah", "sounds good", "go for it", "looks right") → create the task file in `.logbook/queued/`, update `.logbook/index.md`, mark these items as processed.
+   - **Rename** ("call it 'auth cleanup' instead", "rename to X", "use 'fix dashboard' as the title") → create with the new title.
+   - **Regroup** ("split that one out", "merge with the next group", "those don't belong together", "1 and 3 should be one task") → re-propose the grouping based on what they said.
+   - **Skip** ("nope", "skip it", "leave that for later", "not now") → leave items in inbox, move to next group.
+   - **Unclear** → ask one focused clarifying question, then proceed.
 6. Repeat for each remaining group.
 7. Rewrite `.logbook/inbox.md` to remove processed lines (keep unprocessed ones, keep the `# Logbook Inbox` header).
 8. Print final summary: `Triaged {N} items into {M} tasks. {K} item(s) remain in inbox.`

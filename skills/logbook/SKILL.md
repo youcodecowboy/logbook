@@ -1,13 +1,16 @@
 ---
 name: logbook
 description: >
-  Use when the user's request involves multi-step implementation, file modifications,
-  feature work, bug fixes, refactoring, or any work that benefits from a written plan.
-  Also use when the user references the logbook, backlog, tasks, or asks what to work
-  on next. The logbook is a flight recorder of work in `.logbook/` that survives
-  compaction, context switches, and new sessions. Do NOT use for simple questions,
-  one-line tweaks, explanations, or conversational messages — those don't need
-  tracking and the bookkeeping overhead would be noise.
+  Track substantive work in `.logbook/` as plain markdown files. Use when the
+  user is starting actual work that benefits from a written plan: multi-step
+  implementation, feature work, bug fixes, refactoring, or when they explicitly
+  ask to start a tracked task or pick up something from the backlog. Also use
+  when they ask what to work on next or want to review work in flight. Do NOT
+  use for simple questions, one-line tweaks, explanations, or conversational
+  messages — those don't need tracking. Do NOT use when the user message is an
+  instruction to invoke `logbook-jot`, `logbook-status`, or `logbook-triage` —
+  those are dedicated sibling skills and don't need orchestration. If a sibling
+  skill is being invoked, stay out of it.
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash(cat:*), Bash(mv:*), Bash(mkdir:*), Bash(date:*), Bash(ls:*), Task
 ---
 
@@ -21,8 +24,21 @@ Before doing anything else:
 
 1. **Read `.logbook/index.md`** — this is the source of truth for what tasks exist and their status.
 2. **Read `.logbook/inbox.md`** — check for raw captures that might be relevant to the current request.
-3. **If `.logbook/` doesn't exist**, initialize it (see Initialization below) and continue.
-4. **Print one status line** to the user, e.g.: `📋 Logbook: 2 active, 4 queued, 6 inbox items`. Then proceed with the actual work — the logbook is the flight recorder, not the cockpit.
+3. **Read `.logbook/.last-session-state` if it exists** — this is a JSON snapshot left by the PreCompact hook before the prior session was compacted. It lists active task paths at the moment of compaction. If the user is resuming work, mention which tasks were in flight: `📋 Last session was compacted while working on: <task title>. Want me to resume?`
+4. **If `.logbook/` doesn't exist**, initialize it (see Initialization below) and continue.
+5. **Print one status line** to the user, e.g.: `📋 Logbook: 2 active, 4 queued, 6 inbox items`. Then proceed with the actual work — the logbook is the flight recorder, not the cockpit.
+
+### Reading task files: how to interpret `[compaction checkpoint]` entries
+
+The PreCompact hook may have appended log entries that look like:
+
+```
+### [compaction checkpoint] 2026-04-16 14:32
+Status: context was about to be compacted.
+Note: resume from the last unchecked Plan step. ...
+```
+
+These are **not Plan steps**. They're hook-written markers noting that the conversation context was compacted at that point and the most recent normal log entry above may be incomplete. When you see one, treat it as a "work was happening here, then context was wiped" signal: trust the Plan checkboxes, resume from the first unchecked one, and don't try to re-do what may have already been done — check the codebase for evidence first.
 
 ## Decide what kind of work this is
 
@@ -115,9 +131,13 @@ Index row format:
 | {status} | {YYYY-MM-DD} | {Title} | {tags} | {relative/path/to/file.md} |
 ```
 
+**Escape `|` characters in titles** as `\|` when writing the row, so a title like `Add |> operator support` doesn't break the table. The original task file keeps the title unescaped — only the index row needs escaping.
+
 ## Delegating bookkeeping to the worker
 
-For multi-step file operations (creating a task and updating index, moving a file plus updating both files, batch-rewriting the index), invoke the `logbook-worker` subagent via the Task tool. The worker runs in a forked context so its `mv` and `Edit` chatter doesn't eat your token budget. Pass it a precise instruction, for example:
+For multi-step file operations (creating a task and updating index, moving a file plus updating both files, batch-rewriting the index), invoke the `logbook-worker` subagent via the Task tool. The worker runs in a forked context so its `mv` and `Edit` chatter doesn't eat your token budget.
+
+**Exact invocation:** Use the Task tool with `subagent_type="logbook:logbook-worker"` (the plugin name `logbook` plus the agent name `logbook-worker`, separated by a colon — that's how Claude Code namespaces plugin-provided subagents). Pass a precise instruction in the `prompt` field, for example:
 
 > Move `.logbook/active/2026-04-16_fix-settings-flash.md` to `.logbook/done/`.
 > Update its `Status:` field to `done`. Update the matching row in `.logbook/index.md`

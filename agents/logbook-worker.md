@@ -41,6 +41,8 @@ Typical instructions you'll receive:
 
 Sort rows by status (`active` → `queued` → `paused` → `done` → `abandoned`), then by date desc within each status block. The `{tags}` field is the space-joined hashtag list (`#frontend #bug`).
 
+**Escape `|` in titles** when writing the row: `Add |> operator support` becomes `Add \|> operator support` in the index row only. The original task file's `# Heading` keeps the title unescaped — the escape is just for the markdown table cell. Same for any `\` characters: write them as `\\` inside the cell.
+
 ## Status field updates
 
 When moving a file between folders, update the `Status:` line near the top of the file. Valid values: `inbox`, `queued`, `active`, `paused`, `done`, `abandoned`.

@@ -7,22 +7,41 @@ description: >
   /jot or asks to "jot down" something. Do not auto-trigger on general
   conversation or ambient observations.
 disable-model-invocation: true
-allowed-tools: Read, Write, Bash(date:*), Bash(mkdir:*)
+allowed-tools: Read, Write, Bash(mkdir:*)
 argument-hint: [your note here]
 ---
 
 # /jot — Quick Capture
 
-Append `$ARGUMENTS` to `.logbook/inbox.md` as a single timestamped line, then return immediately. The whole point of `/jot` is **zero context switch** — the user is mid-thought and just wants the note recorded.
+Append `$ARGUMENTS` to `.logbook/inbox.md` as a single dated line, then return immediately. The whole point of `/jot` is **zero context switch** — the user is mid-thought and just wants the note recorded.
 
 ## Steps
 
-1. Get the current local timestamp in `YYYY-MM-DD HH:MM` form. Use `date '+%Y-%m-%d %H:%M'` if you don't already know it.
-2. If `.logbook/inbox.md` doesn't exist, create the minimum needed: `mkdir -p .logbook` and write `.logbook/inbox.md` with the header `# Logbook Inbox\n\n`. (Full directory structure can wait — the main `logbook` skill handles complete initialization the next time it activates.)
+1. Use today's date in `YYYY-MM-DD` form. You already have it from the system reminder context — no shell call needed. Date-level precision is enough for raw inbox lines; if the user wants exact times for things, they can write them in the note (`/jot 11:42 — deploy went red`).
+2. If `.logbook/` doesn't exist, **fully initialize it** (don't leave half a structure behind):
+   - `mkdir -p .logbook/queued .logbook/active .logbook/paused .logbook/done .logbook/abandoned`
+   - Write `.logbook/inbox.md` with header `# Logbook Inbox\n\n`
+   - Write `.logbook/index.md` with:
+     ```
+     # Logbook Index
+
+     Last updated: YYYY-MM-DD
+
+     | Status | Date | Title | Tags | File |
+     |--------|------|-------|------|------|
+     ```
+   - Write `.logbook/.gitignore` with:
+     ```
+     # Logbook defaults — edit to taste
+     inbox.md
+     done/
+     abandoned/
+     ```
+   Initialization is idempotent: only create files/dirs that don't exist, never overwrite.
 3. Append a single line to `.logbook/inbox.md`:
 
    ```
-   - YYYY-MM-DD HH:MM — $ARGUMENTS
+   - YYYY-MM-DD — $ARGUMENTS
    ```
 
 4. Reply with one line and nothing else: `📝 Logged to inbox`.
