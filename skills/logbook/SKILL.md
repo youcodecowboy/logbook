@@ -48,6 +48,12 @@ After reading state, classify the request:
 
 - **A queued task being picked up** — the request matches something in `queued/`. Move that file to `active/`, update `Status:` and `index.md`, then start.
 
+- **"Pick the next queued task"** — the user invoked `/logbook:next` or asked something like "what should I work on" / "give me the next thing" without naming a specific task. Sort `queued/` by:
+  1. Priority desc (high → medium → low)
+  2. Date asc (oldest first within the same priority — older items have been waiting longer)
+
+  Pick the top of that sort, move it to `active/`, update `Status:` and the `index.md` row, then start. If `queued/` is empty, say so and offer to start a new task or run `/logbook:triage` if there are inbox items waiting.
+
 - **New work** — no matching task exists. Create a new task file in `active/`. If there are inbox items relevant to this request, absorb them: paste them into the Source/Context, then remove them from `inbox.md`. Mention what you auto-triaged in your status line so the user can correct course. Auto-triage only happens when you're already actively working — never silently in the background.
 
 ## Creating a task file

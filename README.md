@@ -14,11 +14,14 @@
 
 | Command | What it does |
 |---|---|
-| `/jot <note>` | Append to `.logbook/inbox.md`. Auto-splits multi-item input into separate lines (`/jot fix dashboard flash, also auth is brittle, and add skeletons` → 3 lines). Use `;` to force a split when you want to be explicit. |
-| `/status` | Dashboard: counts per state, active task progress, queued items. |
-| `/triage` | Group raw inbox captures into structured tasks (queued backlog). Also detects when one inbox line is actually multiple items in a trench coat and offers to split. |
-| `/logbook <task>` | Explicitly start a tracked task with a plan. |
+| `/logbook:jot <note>` | Append to `.logbook/inbox.md`. Auto-splits multi-item input into separate lines (`/logbook:jot fix dashboard flash, also auth is brittle, and add skeletons` → 3 lines). Use `;` to force a split when you want to be explicit. |
+| `/logbook:status` | Dashboard: counts per state, active task progress, queued items. |
+| `/logbook:triage` | Group raw inbox captures into structured tasks (queued backlog). Also detects when one inbox line is actually multiple items in a trench coat and offers to split. |
+| `/logbook:start <task>` | Explicitly start a new tracked task with a plan. |
+| `/logbook:next` | Pick up the next queued task (priority desc, then date asc) and start working on it. |
 | _(automatic)_ | When you ask Claude for something multi-step (a feature, a bug fix, a refactor), the main `logbook` skill auto-triggers and creates a task file with a plan. Progress is logged step-by-step. |
+
+> **About command names:** Claude Code namespaces plugin commands as `/<plugin-name>:<command-name>`, so the canonical form is always `/logbook:jot`, `/logbook:status`, etc. Bare forms like `/jot` may work as shorthand if no other plugin or built-in claims them, but the namespaced form is always safe and is what the docs use.
 
 The plugin stores everything in `.logbook/` inside your repo. Tasks live in folders named after their state (`queued/`, `active/`, `paused/`, `done/`, `abandoned/`). An `index.md` at the top is the master table.
 
@@ -64,17 +67,21 @@ The first time you run `/jot`, `/status`, or trigger a tracked task, logbook aut
 ## Quick start
 
 ```
-/jot the dashboard flashes white on first load
+/logbook:jot the dashboard flashes white on first load
 
-# (a few /jots later)
-/triage
-# → presents grouping suggestions, you confirm
-# → creates queued/2026-04-16_fix-dashboard-flash.md
+# (a few jots later)
+/logbook:triage
+# → presents the full plan in one message
+# → you say "yes" to approve all (or "change 2" / "discard 1" to edit)
+# → worker subagent creates queued/<date>_*.md files in the background
 
-/status
+/logbook:status
 # → shows the current state of your backlog
 
-# (later, just talk to Claude)
+/logbook:next
+# → picks the highest-priority queued task and moves it to active/
+
+# OR — just talk to Claude
 "hey can you fix that dashboard flash thing"
 # → main logbook skill triggers, picks up the queued task,
 #   moves it to active/, executes the plan, logs each step,
@@ -204,12 +211,12 @@ Custom tags are encouraged — write them in your `/jot` notes (`/jot #urgent th
 
 ## How the pieces fit
 
-- **`logbook`** — main skill, auto-triggers on multi-step work. Reads state, decides what to do, logs progress.
-- **`logbook-jot`** — `/jot`. Appends a line to `inbox.md` and returns. Zero context switch.
-- **`logbook-status`** — `/status`. Read-only dashboard.
-- **`logbook-triage`** — `/triage`. Promotes inbox items into structured queued tasks (with your confirmation).
-- **`logbook-worker`** — subagent that handles file I/O in a forked context, so `mv` and `Edit` chatter doesn't eat your main token budget.
-- **`pre-compact.py`** — PreCompact hook. Marks active task files with a checkpoint and snapshots session state before Claude Code compacts the conversation. So if compaction happens mid-step, you can pick up where you left off.
+- **`logbook`** — main skill, auto-triggers on multi-step work. Reads state, decides what to do, logs progress. Also handles `/logbook:start <task>` (explicit start) and `/logbook:next` (pull from queue).
+- **`logbook-jot`** — `/logbook:jot`. Appends to `inbox.md` (smart-split on multi-item input) and returns with a preview of what landed.
+- **`logbook-status`** — `/logbook:status`. Read-only dashboard.
+- **`logbook-triage`** — `/logbook:triage`. Builds a full triage plan (splits + groupings + discards + tags), presents it in one message, accepts bulk approval or targeted edits, then delegates the writes to the worker subagent.
+- **`logbook-worker`** — subagent that handles file I/O in a forked context, so `mv`/`Edit` chatter doesn't eat your main token budget. Invoked by both the main skill and triage.
+- **`pre-compact.py`** — PreCompact hook. Marks active task files with a checkpoint and snapshots session state before Claude Code compacts the conversation, so if compaction happens mid-step you can pick up where you left off.
 
 ---
 
