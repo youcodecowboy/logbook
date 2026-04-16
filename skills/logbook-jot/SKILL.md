@@ -8,12 +8,12 @@ description: >
   conversation or ambient observations.
 disable-model-invocation: true
 allowed-tools: Read, Write, Bash(mkdir:*)
-argument-hint: [your note here]
+argument-hint: [note] (or for multi-item: [item; item; item])
 ---
 
 # /jot — Quick Capture
 
-Append `$ARGUMENTS` to `.logbook/inbox.md` as a single dated line, then return immediately. The whole point of `/jot` is **zero context switch** — the user is mid-thought and just wants the note recorded.
+Append `$ARGUMENTS` to `.logbook/inbox.md` as one or more dated lines, then return immediately. The whole point of `/jot` is **zero context switch** — the user is mid-thought and just wants the note recorded.
 
 ## Steps
 
@@ -38,13 +38,35 @@ Append `$ARGUMENTS` to `.logbook/inbox.md` as a single dated line, then return i
      abandoned/
      ```
    Initialization is idempotent: only create files/dirs that don't exist, never overwrite.
-3. Append a single line to `.logbook/inbox.md`:
+3. **Split on `;` if present.** If `$ARGUMENTS` contains one or more `;` characters, split on them and treat each non-empty trimmed segment as a separate item. Otherwise, treat the whole input as one item.
+
+   Don't try to be smart about commas, "and", "also", or sentence breaks — that's `/triage`'s job. The semicolon splitter is opt-in: if the user typed `;`, they meant it.
+
+   Caveat: if the note contains semicolons that aren't list separators (code snippets, URLs with `?foo=bar;baz`), it'll over-split. Acceptable trade-off for v0.1 — the user can re-jot or fix in inbox.md directly.
+
+4. For each item (one or many), append a line to `.logbook/inbox.md`:
 
    ```
-   - YYYY-MM-DD — $ARGUMENTS
+   - YYYY-MM-DD — {item}
    ```
 
-4. Reply with one line and nothing else: `📝 Logged to inbox`.
+   Single-item example:
+   ```
+   - 2026-04-16 — fix the deploy
+   ```
+
+   Multi-item example (`/jot fix dashboard flash; auth refresh is brittle; add loading skeletons`):
+   ```
+   - 2026-04-16 — fix dashboard flash
+   - 2026-04-16 — auth refresh is brittle
+   - 2026-04-16 — add loading skeletons
+   ```
+
+5. Reply with one line and nothing else:
+   - One item: `📝 Logged to inbox`
+   - N items: `📝 Logged {N} items to inbox`
+
+   If after splitting and trimming there are zero items (e.g., the user typed `/jot ;;`), ask once for the note content and proceed.
 
 ## Rules
 

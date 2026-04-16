@@ -14,9 +14,9 @@
 
 | Command | What it does |
 |---|---|
-| `/jot <note>` | Append a one-liner to `.logbook/inbox.md`. Zero context switch. |
+| `/jot <note>` | Append a one-liner to `.logbook/inbox.md`. Zero context switch. Use `;` to capture multiple items in one call: `/jot fix the deploy; auth refresh is brittle; add loading skeletons`. |
 | `/status` | Dashboard: counts per state, active task progress, queued items. |
-| `/triage` | Group raw inbox captures into structured tasks (queued backlog). |
+| `/triage` | Group raw inbox captures into structured tasks (queued backlog). Also detects when one inbox line is actually multiple items in a trench coat and offers to split. |
 | `/logbook <task>` | Explicitly start a tracked task with a plan. |
 | _(automatic)_ | When you ask Claude for something multi-step (a feature, a bug fix, a refactor), the main `logbook` skill auto-triggers and creates a task file with a plan. Progress is logged step-by-step. |
 
