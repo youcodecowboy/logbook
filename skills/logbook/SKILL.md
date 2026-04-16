@@ -114,6 +114,39 @@ Then check the box in the Plan: `- [x]`. Move on.
 
 **Never delete or rewrite log entries.** They're the audit trail. The Log section is append-only.
 
+## When work hits a blocker (waiting on user input)
+
+If during execution you discover the task can't proceed without user input, a decision, or a dependency that doesn't exist yet, **don't move the file** — the work is still active, just paused on a specific input. Use the structured `Blocked:` field instead:
+
+1. **Add a `Blocked:` field to the task file** (just below `Status:`):
+
+   ```
+   Status: active
+   Blocked: YYYY-MM-DD HH:MM — short description of what's needed (1-3 sentences; longer context goes in the Log)
+   ```
+
+2. **Log the full context** in the `## Log` section so a future session can pick it up cold:
+
+   ```
+   ### [N] {Step that hit the blocker}
+   Status: blocked
+   Started: HH:MM | Blocked: HH:MM
+   Summary: {what was tried, what was found, why it can't proceed}
+   Question for user: {explicit ask, ideally with concrete options}
+   ```
+
+3. **Surface the question to the user** clearly. Don't bury it: "I'm blocked on `{task title}` — {short reason}. Options: (1) X, (2) Y, (3) Z. Which way?"
+
+4. **Do NOT move the file to `paused/`.** Transient input-waiting belongs in active/. Moving to paused/ implies indefinite parking and is heavy for a question that might be answered in 30 seconds.
+
+When the user responds and the blocker clears:
+
+1. **Remove the `Blocked:` field** from the task file.
+2. Append a log entry capturing the resolution.
+3. Continue with the next Plan step (or re-scope the Plan if the answer changed the task's shape).
+
+**Heuristic for promotion to `paused/`:** if `Blocked:` is older than ~7 days, suggest moving the task to `paused/`. A week without resolution usually means the work has actually stopped — better to tell `/status` the truth than pretend it's still active. Always ask before moving; never auto-promote.
+
 ## On task completion
 
 When all Plan steps are checked:
@@ -196,6 +229,7 @@ Initialization is **idempotent**: if `.logbook/` partially exists, fill in missi
 
 - **Never delete or overwrite log entries.** Append-only. The audit trail is the point.
 - **Always update index.md when files move between folders.** A stale index is worse than no index — it lies to `/status`.
+- **Don't move blocked tasks out of `active/` for short waits.** Use the `Blocked:` field for transient input-waiting; reserve `paused/` for explicit parking or stale blocks (>7 days).
 - **Keep the main conversation focused on the actual work.** One status line on activation, one completion line at the end. Logbook bookkeeping that isn't surfaced to the user (file ops, log entries) lives in the worker subagent's context.
 - **Get user confirmation before splitting or merging tasks.** Those are structuring decisions, not bookkeeping.
 - **Auto-triage from inbox is fine, but always mention it.** Format: `Pulled in 2 inbox items: "settings flash" (10:45), "loading skeletons" (11:15)`.

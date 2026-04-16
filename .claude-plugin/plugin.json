@@ -1,6 +1,6 @@
 {
   "name": "logbook",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Flight recorder for Claude Code: automatic task capture, structured backlog, and session-aware work tracking — all as plain markdown files in your repo.",
   "author": {
     "name": "youcodecowboy",

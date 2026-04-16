@@ -194,6 +194,8 @@ Started: 11:40
 
 **Discards live at `.logbook/abandoned/inbox-discards.md`.** When you discard inbox lines during triage (test debris, accidental captures, things that turned out to be irrelevant), they're moved to a single rolling file rather than deleted outright. The `abandoned/` folder is gitignored by default, so discards stay local. Edit `.logbook/.gitignore` if you want them tracked.
 
+**Blocked active tasks stay in `active/`.** When a task can't proceed without user input or a decision, the main skill adds a `Blocked: <date> — <reason>` field to the task file but does NOT move it to `paused/`. The file stays in `active/` because it's still in-progress work. `/logbook:status` surfaces blocked tasks separately (`Active: 2 tasks (1 blocked, awaiting input)`) so they're visible without reading every task file. If a block has been sitting >7 days, status will hint about promoting it to `paused/`. The distinction: `Blocked:` field = transient input-waiting, expected to resolve in a session; `paused/` folder = parked indefinitely, will revisit when conditions change.
+
 ---
 
 ## Tagging
