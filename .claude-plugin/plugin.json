@@ -1,0 +1,28 @@
+{
+  "name": "logbook",
+  "version": "0.1.0",
+  "description": "Flight recorder for Claude Code: automatic task capture, structured backlog, and session-aware work tracking — all as plain markdown files in your repo.",
+  "author": {
+    "name": "youcodecowboy",
+    "url": "https://github.com/youcodecowboy"
+  },
+  "homepage": "https://github.com/youcodecowboy/logbook",
+  "repository": "https://github.com/youcodecowboy/logbook",
+  "license": "MIT",
+  "keywords": [
+    "backlog",
+    "tasks",
+    "tracking",
+    "productivity",
+    "markdown",
+    "flight-recorder"
+  ],
+  "hooks": {
+    "PreCompact": [
+      {
+        "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.py\"",
+        "timeout": 5000
+      }
+    ]
+  }
+}
