@@ -1,113 +1,185 @@
 ---
 name: logbook-triage
 description: >
-  Triage the logbook inbox: read raw captures from `.logbook/inbox.md`, group
-  related items, and (with user confirmation) promote them into structured
-  task files in `.logbook/queued/`. Use when the user invokes /triage or asks
-  to clean up, organize, prioritize, or process the inbox.
+  Triage the logbook inbox: read raw captures from `.logbook/inbox.md`, build a
+  full triage plan (splits + groupings + discards + tags), present it in one
+  message, accept bulk approval or targeted edits, then delegate the file ops
+  to the logbook-worker subagent. Use when the user invokes /triage or asks to
+  clean up, organize, prioritize, or process the inbox.
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(mkdir:*), Bash(mv:*), Bash(date:*)
+allowed-tools: Read, Grep, Glob, Task
 ---
 
-# /triage — Promote Inbox to Queued
+# /triage — Inbox to Backlog
 
-Group raw inbox items into structured tasks the user can pick up later. This is the human-in-the-loop step — grouping is a structuring decision, and structuring decisions need user confirmation.
+Process the logbook inbox into structured queued tasks. The flow is **plan once, present once, confirm in bulk, delegate the writes**. Per-item interrogation is exhausting; real users have judgment about whole plans, not just slices.
 
 ## Steps
 
-1. Read `.logbook/inbox.md`. If there are no `- ` lines (just the header), reply `📋 Inbox is empty — nothing to triage.` and stop.
-2. Read `.logbook/index.md` so you don't accidentally duplicate tasks already in `queued/`, `active/`, or `paused/`.
-3. **Split detection pass (do this before grouping).** Most multi-item lines should already be split — `/jot` auto-splits on entry. But sometimes a multi-item line slips through: pasted content, direct inbox.md edits, or `/jot` calls that left a bundled line whole when it shouldn't have. Scan each inbox line for ones that look like they contain multiple distinct items — delimited by `;`, `, also `, `, and then `, comma followed by a clause that could stand alone, or distinct sentences. For each candidate, propose a split:
+### 1. Read state (no writes yet)
 
-   ```
-   This inbox line looks like multiple items:
-     - 2026-04-16 — fix the dashboard flash, also the auth refresh logic feels brittle, and we should add loading skeletons
+Read `.logbook/inbox.md` (raw captures) and `.logbook/index.md` (existing tasks, so you don't duplicate). If `inbox.md` has no `- ` lines, reply `📋 Inbox is empty — nothing to triage.` and stop.
 
-   I'd split it into:
-     1. fix the dashboard flash
-     2. the auth refresh logic feels brittle
-     3. should add loading skeletons
+### 2. Build the full plan (in your head, not on disk)
 
-   Sound right? (yes / adjust the splits / leave as one)
-   ```
+Produce a single integrated plan covering all of:
 
-   On `yes` → treat the split items as separate virtual inbox items going into the grouping step.
-   On `adjust` → let the user describe the splits they want.
-   On `leave as one` → keep the line as a single item.
+**Split detection** — for each inbox line, decide if it's actually multiple items in a trench coat. Look for `;`, `, also`, `, and then`, distinct sentences with their own verbs, multi-line content. Bias toward proposing splits — false positives are reversible during the confirm step. Don't split bundled noun phrases (`rewrite the auth, refresh, and login flow`) or single observations with qualifiers.
 
-   **Be willing to propose splits** — false positives are cheap (the user just says "leave as one"). False negatives are expensive (one task ends up conflating three things and the user has to clean it up later). But don't auto-split without asking — bundled-concept lines like `rewrite the auth, refresh, and login flow` are real.
+**Discard candidates** — flag lines that look like test debris, accidental captures, or obvious noise (`test capture`, `asdf`, `foo`, single words with no context, lines that look like commands typed by mistake). Bias toward suggesting — the user can always say "keep N" if you're wrong.
 
-   Don't rewrite `inbox.md` yet — keep the split state in memory until the whole triage pass is done, then rewrite once at the end (step 8).
+**Dedup against index** — for each candidate group, check if a similar task already exists in `queued/`, `active/`, or `paused/`. If so, suggest "merge into existing task X" rather than creating a duplicate. Use loose semantic match, not just exact title — `auth refresh broken` should match an existing `Fix auth token refresh logic`.
 
-4. Look at all items (split + un-split) and propose groupings by theme — component (auth, dashboard, settings), feature area, file path, bug-vs-feature, etc. **A single item can be its own group.** Don't force-fit everything into multi-item bundles.
-5. For each proposed group, present a short summary to the user:
+**Grouping** — bundle related items by theme: same component, same file area, same bug-vs-feature shape. A single item is a fine group on its own — don't force bundles. When in doubt, prefer fewer groups (over-grouping is reversible during confirm; under-grouping means more files to manage).
 
-   ```
-   I'd group these {N} items into a task:
+**Tag inference** — apply tags per group. Starting vocabulary: `#bug #feature #refactor #ux #perf #docs #test #security #data #system #frontend #backend #debt #chore`. Custom tags are encouraged when they describe the work better than starter vocab — preserve them.
 
-     Title: {proposed title}
-     Tags:  #tag1 #tag2
-     Items:
-       - 2026-04-16 — {note}
-       - 2026-04-16 — {note}
+**Priority** — default `medium`. Bump to `high` if the original inbox text contains urgency words (urgent, broken, prod, asap, breaking, critical, blocker, regression). Drop to `low` for polish, nice-to-haves, or things explicitly framed as "someday".
 
-   Sound right? (you can say yes / rename it / change the grouping / skip it)
-   ```
+### 3. Present the plan in one message
 
-6. **Wait for the user's response before creating the file.** The user will reply in natural language — interpret intent, don't expect literal keywords:
-   - **Affirmative** ("yes", "yeah", "sounds good", "go for it", "looks right") → create the task file in `.logbook/queued/`, update `.logbook/index.md`, mark these items as processed.
-   - **Rename** ("call it 'auth cleanup' instead", "rename to X", "use 'fix dashboard' as the title") → create with the new title.
-   - **Regroup** ("split that one out", "merge with the next group", "those don't belong together", "1 and 3 should be one task") → re-propose the grouping based on what they said.
-   - **Skip** ("nope", "skip it", "leave that for later", "not now") → leave items in inbox, move to next group.
-   - **Unclear** → ask one focused clarifying question, then proceed.
-7. Repeat for each remaining group.
-8. **Rewrite `.logbook/inbox.md` once at the end** — remove processed lines (including the originals of any lines that got split in step 3), keep unprocessed ones, keep the `# Logbook Inbox` header. If the user split a line but only some of the resulting sub-items got processed, write the unprocessed sub-items back as new inbox lines (with today's date prefix) so they're not lost.
-9. Print final summary: `Triaged {N} items into {M} tasks. {K} item(s) remain in inbox.`
-
-## Task file format (for queued items)
-
-Use the same template as the main `logbook` skill, with `Status: queued` and an empty `## Log` section. Critical: include the original inbox lines in the Source so provenance is preserved:
+Render a single scannable summary. Number every item so the user can reference them in feedback:
 
 ```
-# {Title}
+📋 Triage plan ({M} items → {N} tasks, {K} discards, {D} possible duplicates)
 
-Created: YYYY-MM-DD HH:MM
-Status: queued
-Tags: #tag1 #tag2
-Source:
-  - 2026-04-16 10:45 — {original inbox line}
-  - 2026-04-16 11:15 — {original inbox line}
-Priority: medium
+Splits proposed:
+  Item 2 ("main dashboard up next is too flat...") → would split into:
+    a. Up Next section needs data richness, iconography, time
+    b. Daily brief section needs better styling
 
-## Context
+New tasks (would create in queued/):
 
-{2-3 sentences synthesizing what these items are about and why they belong together.}
+  1. Add data richness to dashboard "Up Next" section
+     Tags: #frontend #ux    Priority: medium
+     Source: items 2a, 4
+     Plan: 4 steps
 
-## Plan
+  2. Add pagination to messages and flags
+     Tags: #frontend #ux #debt    Priority: medium
+     Source: item 3
+     Plan: 4 steps
 
-- [ ] {step 1 — best guess, the user can refine when they pick this up}
-- [ ] {step 2}
-- [ ] {step 3}
+Discards (would remove from inbox):
 
-## Log
+  D1. "test capture" — looks like test debris
 
+Possible duplicates:
+
+  X1. Proposed group "auth refresh" overlaps with
+      active/2026-04-15_auth-token-refresh.md — merge?
+
+Approve all? Or pick a targeted edit:
+  - change 1                   rename, retag, or rewrite a specific task
+  - discard 3                  drop another inbox line
+  - keep D1                    don't discard the suggested item
+  - merge X1                   fold into existing task instead of creating new
+  - regroup                    rebuild groupings from scratch
+  - cancel                     abort, no changes written
 ```
 
-Filename: `YYYY-MM-DD_kebab-title.md`. Use today's date.
+**If `AskUserQuestion` is available in your tool set, prefer it** for the final approve/edit prompt — render the choices as a clickable list. The popup pattern is faster to answer than typing free-form. The inline prompt is the fallback.
 
-## Plan generation
+### 4. Accept the response — bulk or targeted
 
-Draft 2-5 tentative steps based on what the items describe. You're not committing to the implementation here — you're making the task actionable enough that someone (probably the user, possibly a future Claude session) can pick it up and start without having to think hard.
+The user replies in natural language. Interpret intent — don't expect literal keywords:
 
-If you genuinely can't think of meaningful steps, write a single step like `- [ ] Investigate and define approach` and note in Context what's unclear.
+| User says | What to do |
+|---|---|
+| "yes" / "approve" / "looks good" / "go ahead" / "all good" / "ship it" | Apply the entire plan as proposed |
+| "change 2: rename to X" / "make 2 about Y" / "2 should be tagged debt not ux" | Modify the named task per the change, leave rest |
+| "discard 3" / "drop 3 too" / "and 3 is noise" | Add inbox line 3 to discards |
+| "keep D1" / "don't discard the test one" / "leave the test capture" | Remove from discards, leave in inbox |
+| "merge X1" / "yeah merge with auth task" | Fold the proposed group into the existing task instead of creating new |
+| "regroup" / "those don't belong together" / "split 1 and 2" | Rebuild groupings, present an updated plan |
+| "cancel" / "nevermind" / "abort" | Stop — make no changes |
 
-## Batching when there are many items
+For multiple edits in one message ("change 2 to be about Y, discard 3 and 4"), apply all the changes, then **re-present the updated plan and re-ask for approval**. Don't loop more than 2-3 rounds — if the user is still iterating, ask: "want me to create what you've described and we can fix specifics later?"
 
-If the inbox has more than ~15 items, process in batches of 5-7 groupings at a time. Show the user the first batch, get confirmations, create those files, then propose the next batch. Don't dump 20 yes/no prompts at once — that's exhausting.
+### 5. Delegate the file ops to logbook-worker
+
+**Once the plan is locked, you do not write any files yourself.** Hand the entire batch to the `logbook-worker` subagent via the Task tool with `subagent_type="logbook:logbook-worker"`. The worker runs in a forked context — its file I/O chatter doesn't eat your main token budget. On a triage of ~10 items into ~5 tasks, that's the difference between a clean conversation and a wall of Write/Edit calls.
+
+**Construct the worker prompt as a precise instruction list.** Template:
+
+> Execute this triage batch on `.logbook/`:
+>
+> **Create these queued task files** (full content provided below):
+>
+> Path: `.logbook/queued/2026-04-16_dashboard-up-next-data.md`
+> Content:
+> ```
+> # Add data richness to dashboard "Up Next" section
+> Created: 2026-04-16
+> Status: queued
+> Tags: #frontend #ux
+> Source:
+>   - 2026-04-16 — main dashboard section "up next" is too flat, needs to be more data rich, ...
+> Priority: medium
+>
+> ## Context
+> ...
+>
+> ## Plan
+> - [ ] Audit current data shape feeding the Up Next section
+> - [ ] Add iconography per item type (task / meeting / cal event)
+> - [ ] Add time/due indicator
+> - [ ] Add color treatment + subtitle
+>
+> ## Log
+> ```
+>
+> Path: `.logbook/queued/2026-04-16_messages-flags-pagination.md`
+> Content: ...
+>
+> **Add rows to `.logbook/index.md`** (insert into the queued block, date desc):
+>
+> ```
+> | queued | 2026-04-16 | Add data richness to dashboard "Up Next" section | #frontend #ux | queued/2026-04-16_dashboard-up-next-data.md |
+> | queued | 2026-04-16 | Add pagination to messages and flags | #frontend #ux #debt | queued/2026-04-16_messages-flags-pagination.md |
+> ```
+>
+> Touch the `Last updated:` line.
+>
+> **Discard these inbox lines** (append each to `.logbook/abandoned/inbox-discards.md` — create the file with header `# Discarded inbox items\n\n` if it doesn't exist, create the `abandoned/` directory if missing):
+>
+> ```
+> - 2026-04-16 — discarded: test capture
+> ```
+>
+> **Rewrite `.logbook/inbox.md`** keeping the `# Logbook Inbox` header and these unprocessed lines (none in this case — remove all that were either turned into tasks or discarded):
+>
+> ```
+> (no remaining lines)
+> ```
+>
+> Reply with a per-file summary when done.
+
+The worker handles all the file I/O. When it returns, render its summary to the user as a single block (see step 6) and stop.
+
+### 6. Final summary to the user
+
+After the worker reports back, show:
+
+```
+✓ Triaged 5 items → 3 queued tasks (1 discarded, 0 remaining in inbox)
+
+Created:
+  → queued/2026-04-16_dashboard-up-next-data.md
+  → queued/2026-04-16_dashboard-styling.md
+  → queued/2026-04-16_messages-flags-pagination.md
+
+Discarded: 1 line archived to .logbook/abandoned/inbox-discards.md
+```
+
+If the worker reported any errors (file already existed, index out of sync, etc.), surface those too — short, no pretending things worked when they didn't.
 
 ## Rules
 
-- **Never silently move items to queued.** Confirmation per task. Triage is not bookkeeping.
-- **Preserve original timestamps in Source.** Provenance matters when you're trying to remember why something is in the backlog three weeks later.
-- **One inbox item ≠ always one task.** It's also fine for one inbox item to become its own queued task. The grouping is judgment, not algorithm.
-- **Don't delete the inbox header.** When rewriting `inbox.md`, keep `# Logbook Inbox\n\n` and any unprocessed items beneath it.
+- **Never write files yourself.** Delegate all file ops to logbook-worker. The only file you read directly is `inbox.md` and `index.md` in step 1.
+- **One presentation, one ask.** No per-group ping-pong unless the user explicitly wants to iterate. Real users approve whole plans, not slices.
+- **Bias toward proposing splits and discards.** False positives are cheap (user says "keep D1" or "leave 3 as one"). False negatives are expensive (items buried inside conflated tasks, or noise that lives forever in inbox).
+- **Preserve original timestamps in `Source:`** of every queued task. Provenance matters when picking up a task three weeks later.
+- **One inbox item ≠ always one task.** Single items can become single tasks. Don't force them into bundles.
+- **Discards go to `.logbook/abandoned/inbox-discards.md`** as `- YYYY-MM-DD — discarded: {original}` lines. Single rolling file, not one file per discard. The `abandoned/` folder is gitignored by default, so discards stay local unless the user edits their `.logbook/.gitignore`.
+- **If the user cancels, write nothing.** Including no partial state. Triage is atomic — either the worker runs the whole batch or nothing happens.

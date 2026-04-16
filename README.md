@@ -177,6 +177,18 @@ Started: 11:40
 
 ---
 
+## Behavior notes
+
+**Within-day ordering is by file position, not timestamp.** Inbox items are dated `YYYY-MM-DD` only. If you capture 10 things in one day, they appear in the order you captured them — file position is the order signal. If you need precise time ordering, type the time in the note itself: `/jot 14:30 — deploy went red`.
+
+**Queued task Plans are starting prompts, not specs.** When `/triage` creates a queued task, the Plan is what the model could infer from the inbox text alone — without reading the code. When you pick up the task with `/logbook`, expect to refine the Plan based on actual file reading. Treat the queued Plan as a thinking-prompt, not a spec to execute verbatim.
+
+**`/triage` writes through the worker subagent.** When you confirm a triage plan, the file operations (creating task files, updating index, archiving discards, rewriting inbox) happen in a forked subagent context to keep your main conversation clean. You'll see a one-line summary of what was created — the worker chatter stays out of your context budget.
+
+**Discards live at `.logbook/abandoned/inbox-discards.md`.** When you discard inbox lines during triage (test debris, accidental captures, things that turned out to be irrelevant), they're moved to a single rolling file rather than deleted outright. The `abandoned/` folder is gitignored by default, so discards stay local. Edit `.logbook/.gitignore` if you want them tracked.
+
+---
+
 ## Tagging
 
 Tags are inferred by the model from task content. Starting vocabulary:

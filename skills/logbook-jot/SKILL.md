@@ -56,6 +56,10 @@ Append `$ARGUMENTS` to `.logbook/inbox.md` as one or more dated lines, then retu
 
    When uncertain, lean toward splitting. Triage can always re-group; un-splitting from a buried task is harder.
 
+   **Strip leading connectives** when smart-splitting. After splitting, items 2+ may begin with sentence-connecting words that were meaningful in the original input but read awkwardly standalone. Strip leading `Also,` / `And,` / `Plus,` / `Then,` / `Then also,` (case-insensitive, with the trailing comma+space) from items 2+. The first item never gets stripped — it didn't have a connector to begin with.
+
+   Example: `/jot fix the dashboard. Also auth refresh is brittle` → items become `["fix the dashboard", "auth refresh is brittle"]`, not `["fix the dashboard", "Also auth refresh is brittle"]`.
+
    Caveat: if a note contains real semicolons that aren't list separators (code snippets, URLs with `?foo=bar;baz`), the explicit fast path will over-split. Acceptable trade-off — the user can re-jot or edit `inbox.md` directly.
 
 4. For each item (one or many), append a line to `.logbook/inbox.md`:
@@ -76,9 +80,22 @@ Append `$ARGUMENTS` to `.logbook/inbox.md` as one or more dated lines, then retu
    - 2026-04-16 — add loading skeletons
    ```
 
-5. Reply with one line and nothing else:
-   - One item: `📝 Logged to inbox`
-   - N items: `📝 Logged {N} items to inbox`
+5. Reply with a short confirmation that **shows what was logged** so the user has a glance-able record without opening `inbox.md`:
+
+   - One item:
+     ```
+     📝 Logged to inbox: {item, truncated to ~80 chars with … if longer}
+     ```
+
+   - Multiple items:
+     ```
+     📝 Logged {N} items to inbox:
+       1. {item 1, truncated to ~80 chars}
+       2. {item 2, truncated to ~80 chars}
+       ...
+     ```
+
+   Truncate any item longer than ~80 chars with a trailing `…`. The point is confirmation that the right things landed — not a paragraph back. Keep it tight.
 
    If after splitting and trimming there are zero items (e.g., the user typed `/jot ;;`), ask once for the note content and proceed.
 
