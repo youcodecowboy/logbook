@@ -59,6 +59,11 @@
 | `/logbook:on-deck` | Peek at the next 3 queued tasks without starting any. Shows title, tags, priority, source — useful for "what would I be doing if I `/next`'d right now?" |
 | `/logbook:next` | **Work through your backlog sequentially.** Picks the highest-priority queued task (priority desc, then date asc), moves it to `active/`, and starts it. Run it again when you finish to pull the next one. |
 | `/logbook:start <task>` | Start a new tracked task explicitly with a description. Goes directly to `active/` since you're starting now. |
+| `/logbook:done [task]` | Mark an active task complete and move it to `done/`. Defaults to the currently-active task if there's exactly one. |
+| `/logbook:show <task>` | View a specific task's full content (frontmatter, source, notes, blocked field). Read-only. Reaches into all folders. |
+| `/logbook:edit <task> <change>` | Modify a task — rename, retag, change priority, set/clear `Blocked:`, pause, resume, add notes. Natural-language change interpretation. |
+| `/logbook:abandon <task>` | "Decided not to do this." Moves to `abandoned/` with audit trail. Different from `/delete` (which removes the file entirely). |
+| `/logbook:delete <task>` | Permanently remove a task file (with confirmation). For mistakes, accidental captures, noise. No audit trail. Use `/abandon` if you want history preserved. |
 | `/logbook:jot <note>` | Manual quick-capture to `.logbook/inbox.md`. Auto-splits multi-item input. **Use this if you want new top-level work tracked** — TodoWrite mid-execution won't auto-capture new items anymore (see policy above). |
 | `/logbook:triage` | Process inbox items into queued tasks. Smart at grouping/dedup/discard. Does NOT generate Plans. |
 | `/logbook:capture` | Manual fallback for plan-like content from conversation that didn't go through plan mode. |
@@ -234,10 +239,22 @@ Custom tags are encouraged — write them in `/jot` notes (`/jot #urgent the dep
 - **`hooks/mirror-todos.py`** — `PostToolUse` on `TodoWrite`. Mirrors todo state changes to logbook folders. Update-only (never creates new tasks from TodoWrite — that prevents tactical sub-steps from polluting the backlog).
 - **`hooks/pre-compact.py`** — `PreCompact`. Snapshots active task paths to `.logbook/.last-session-state` so `/logbook:status` can offer resumption next session.
 - **`status` skill (`/logbook:status`)** — auto-triggers on backlog state questions. Read-only dashboard.
-- **`jot`, `triage`, `capture`, `start`, `next`, `on-deck` skills** — manual entry points (won't auto-trigger). One slash command each. Triage / capture / start / next delegate writes to the worker subagent.
+- **Manual entry points (one skill each, no auto-trigger):**
+  - **Capture:** `jot`, `triage`, `capture`
+  - **Lifecycle:** `start`, `next`, `done`, `abandon`, `delete`, `edit`
+  - **Query:** `on-deck`, `show`
 - **`worker` agent** — all file writes happen here in a forked context. Invoked as `subagent_type="logbook:worker"`.
 
-**Slash commands surface:** seven in total. `/logbook:status`, `/logbook:on-deck`, `/logbook:next`, `/logbook:start <task>`, `/logbook:jot <note>`, `/logbook:triage`, `/logbook:capture`. No `commands/` directory — every entry point is a skill, so the menu shows exactly one slash item per capability.
+**Slash commands surface:** twelve total, organized by purpose:
+
+```
+Query (read-only):    /logbook:status   /logbook:on-deck   /logbook:show
+Lifecycle (writes):   /logbook:start    /logbook:next      /logbook:done
+                      /logbook:abandon  /logbook:delete    /logbook:edit
+Capture (intake):     /logbook:jot      /logbook:triage    /logbook:capture
+```
+
+No `commands/` directory — every entry point is a skill, so the menu shows exactly one slash item per capability.
 
 ---
 
