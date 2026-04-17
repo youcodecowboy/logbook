@@ -61,6 +61,7 @@
 | `/logbook:start <task>` | Start a new tracked task explicitly with a description. Goes directly to `active/` since you're starting now. |
 | `/logbook:done [task]` | Mark an active task complete and move it to `done/`. Defaults to the currently-active task if there's exactly one. |
 | `/logbook:show <task>` | View a specific task's full content (frontmatter, source, notes, blocked field). Read-only. Reaches into all folders. |
+| `/logbook:review [window]` | Scan recent git commits and reconcile open items against actual code activity. Covers BOTH open tasks (queued/active/paused) AND raw inbox lines (the highest-volume source of "silent completion" — quick jots that get fixed without ever being triaged). Catches work completed without TodoWrite or `/done` (manual coding, multi-developer work, between sessions). Surfaces candidates by section + confidence; never moves files without confirmation. Default window: 7d. |
 | `/logbook:edit <task> <change>` | Modify a task — rename, retag, change priority, set/clear `Blocked:`, pause, resume, add notes. Natural-language change interpretation. |
 | `/logbook:abandon <task>` | "Decided not to do this." Moves to `abandoned/` with audit trail. Different from `/delete` (which removes the file entirely). |
 | `/logbook:delete <task>` | Permanently remove a task file (with confirmation). For mistakes, accidental captures, noise. No audit trail. Use `/abandon` if you want history preserved. |
@@ -243,15 +244,17 @@ Custom tags are encouraged — write them in `/jot` notes (`/jot #urgent the dep
   - **Capture:** `jot`, `triage`, `capture`
   - **Lifecycle:** `start`, `next`, `done`, `abandon`, `delete`, `edit`
   - **Query:** `on-deck`, `show`
+  - **Reconcile:** `review` — scans git history for completed work that's still marked open
 - **`worker` agent** — all file writes happen here in a forked context. Invoked as `subagent_type="logbook:worker"`.
 
-**Slash commands surface:** twelve total, organized by purpose:
+**Slash commands surface:** thirteen total, organized by purpose:
 
 ```
 Query (read-only):    /logbook:status   /logbook:on-deck   /logbook:show
 Lifecycle (writes):   /logbook:start    /logbook:next      /logbook:done
                       /logbook:abandon  /logbook:delete    /logbook:edit
 Capture (intake):     /logbook:jot      /logbook:triage    /logbook:capture
+Reconcile:            /logbook:review
 ```
 
 No `commands/` directory — every entry point is a skill, so the menu shows exactly one slash item per capability.
