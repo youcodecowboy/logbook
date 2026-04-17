@@ -55,6 +55,7 @@
 | Command | What it does |
 |---|---|
 | _(automatic)_ | When Claude exits plan mode, the captured plan is decomposed into queued task files. When TodoWrite is used (by any tool — vanilla Claude, Superpowers, etc.), todo state is mirrored to `.logbook/` folders: `pending → queued/`, `in_progress → active/`, `completed → done/`. **Update-only policy** — TodoWrite never *creates* logbook tasks, only updates state of tasks that already exist. Tactical within-execution sub-steps don't pollute the backlog. |
+| `/logbook:tools` | Print a grouped cheat sheet of all available commands + the auto-capture mechanisms. Use this when you forget what's available. |
 | `/logbook:status` | Read-only dashboard: counts per state, active tasks (with blocked annotation), inbox size, next-up queue. **Auto-triggers** on questions about backlog state. |
 | `/logbook:on-deck` | Peek at the next 3 queued tasks without starting any. Shows title, tags, priority, source — useful for "what would I be doing if I `/next`'d right now?" |
 | `/logbook:next` | **Work through your backlog sequentially.** Picks the highest-priority queued task (priority desc, then date asc), moves it to `active/`, and starts it. Run it again when you finish to pull the next one. |
@@ -243,14 +244,14 @@ Custom tags are encouraged — write them in `/jot` notes (`/jot #urgent the dep
 - **Manual entry points (one skill each, no auto-trigger):**
   - **Capture:** `jot`, `triage`, `capture`
   - **Lifecycle:** `start`, `next`, `done`, `abandon`, `delete`, `edit`
-  - **Query:** `on-deck`, `show`
+  - **Query:** `on-deck`, `show`, `tools` (the cheat sheet)
   - **Reconcile:** `review` — scans git history for completed work that's still marked open
 - **`worker` agent** — all file writes happen here in a forked context. Invoked as `subagent_type="logbook:worker"`.
 
-**Slash commands surface:** thirteen total, organized by purpose:
+**Slash commands surface:** fourteen total, organized by purpose. Run `/logbook:tools` for an in-Claude cheat sheet:
 
 ```
-Query (read-only):    /logbook:status   /logbook:on-deck   /logbook:show
+Query (read-only):    /logbook:status   /logbook:on-deck   /logbook:show     /logbook:tools
 Lifecycle (writes):   /logbook:start    /logbook:next      /logbook:done
                       /logbook:abandon  /logbook:delete    /logbook:edit
 Capture (intake):     /logbook:jot      /logbook:triage    /logbook:capture
