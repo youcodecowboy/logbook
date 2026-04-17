@@ -51,7 +51,7 @@ CAPTURE — intake
                                conversation that didn't go through plan mode.
 
 RECONCILE — catch up
-  /logbook:review [window]     Scan recent git history vs open tasks AND inbox
+  /logbook:check [window]     Scan recent git history vs open tasks AND inbox
                                lines. Surfaces items that look completed but
                                aren't marked done yet. Default window: 7d.
 
@@ -73,7 +73,7 @@ QUICK START
   3. /logbook:next                         → queued → active/
   4. (do the work in conversation)         → TodoWrite mirror moves to done/
   5. /logbook:status                       → see what's left
-  6. /logbook:review                       → catch up anything missed in git
+  6. /logbook:check                       → catch up anything missed in git
 
 Files live in .logbook/ at your project root.
 Full docs: https://github.com/youcodecowboy/logbook

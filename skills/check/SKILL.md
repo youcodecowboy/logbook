@@ -1,21 +1,23 @@
 ---
-name: review
+name: check
 description: >
   Reconcile open logbook items (tasks AND inbox lines) against recent
-  git history. Use when the user invokes /logbook:review OR asks "what
+  git history. Use when the user invokes /logbook:check OR asks "what
   have I actually done" / "did I forget to mark anything done" / "scan
   recent commits for completed tasks" / "reconcile my backlog with
-  git" — they want evidence-based detection of items that have been
-  completed in the code but not marked done in logbook. Scans both
-  open tasks (queued/active/paused) AND inbox lines. Surfaces
-  candidates with evidence + confidence; never moves files without
-  user confirmation.
+  git" / "check my logbook against git" — they want evidence-based
+  detection of items that have been completed in the code but not
+  marked done in logbook. Scans both open tasks (queued/active/paused)
+  AND inbox lines. Surfaces candidates with evidence + confidence;
+  never moves files without user confirmation. (Renamed from /review
+  in v0.2.6 to avoid collision with Claude Code's built-in /review
+  command for PR code review.)
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash(git log:*), Bash(git diff:*), Bash(git show:*), Bash(git rev-parse:*), Task
 argument-hint: [time window like "7d", "1w", "since:HEAD~10" — defaults to "7d"]
 ---
 
-# /logbook:review — Reconcile Backlog ↔ Git History
+# /logbook:check — Reconcile Backlog ↔ Git History
 
 Scan recent commits to find logbook items (tasks AND inbox lines) that are *actually* completed (or in-progress) in the codebase but not yet reflected in the backlog. This is the catch-up loop for everything that didn't go through TodoWrite or `/done` — manual coding, work by other developers, multi-session workflows, and especially inbox lines that got addressed quickly without ever being triaged.
 
@@ -23,7 +25,7 @@ Scan recent commits to find logbook items (tasks AND inbox lines) that are *actu
 
 ### 1. Verify environment
 
-- Check we're in a git repo: `git rev-parse --git-dir` (silently). If not, reply: `📋 No git repo here — /review needs git history to scan against. Use /logbook:status to see open tasks instead.` and stop.
+- Check we're in a git repo: `git rev-parse --git-dir` (silently). If not, reply: `📋 No git repo here — /logbook:check needs git history to scan against. Use /logbook:status to see open tasks instead.` and stop.
 - Check `.logbook/` exists. If not, suggest creating tasks first.
 
 ### 2. Determine the time window
@@ -178,7 +180,9 @@ For each approved candidate, dispatch a precise instruction to the worker via `T
 > - Move `.logbook/queued/<file3>.md` to `.logbook/active/<file3>.md`. Update Status: to `active`. Update index.md row.
 >
 > For each moved task, append a one-liner to the file's `## Notes` section:
-> `Reconciled <YYYY-MM-DD> via /logbook:review — <commit hash>: "<commit message>"`
+> `Reconciled <YYYY-MM-DD> via /logbook:check — <commit hash>: "<commit message>"`
+>
+> (Note: tasks reconciled in v0.2.0–v0.2.5 may show `via /logbook:review` instead — same operation, just renamed in v0.2.6.)
 >
 > **Inbox cleanups:**
 > - Remove these lines from `.logbook/inbox.md` (preserve all other lines and the header):
